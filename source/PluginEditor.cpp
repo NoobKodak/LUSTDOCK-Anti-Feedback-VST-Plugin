@@ -79,13 +79,26 @@ juce::WebBrowserComponent::Options LostDuckAudioProcessorEditor::buildOptions()
             processor.clearNotches();
             complete (describeDetector());
         })
+        /*  Activation now asks a server, so it takes as long as the customer's connection
+            takes. The bridge already hands us a completion callback, so the answer is
+            simply delivered late rather than the interface freezing while a slow hotel
+            wifi times out -- the screen keeps drawing and the audio keeps running.
+
+            `message` is passed straight through to the UI. The server writes sentences a
+            musician can act on ("this key is already active on 3 computers"), and
+            flattening those into a boolean would throw away the only thing that tells
+            somebody what to do next.                                                   */
         .withNativeFunction ("activate", [this] (const juce::Array<juce::var>& args, Completion complete)
         {
             const auto key = args.isEmpty() ? juce::String() : args[0].toString();
-            const auto ok = processor.activate (key);
 
-            complete (makeObject ({ { "ok", ok },
-                                    { "activated", processor.isActivated() } }));
+            processor.activateAsync (key, [this, complete] (Activation::Outcome outcome)
+            {
+                complete (makeObject ({ { "ok", outcome.ok },
+                                        { "message", outcome.message },
+                                        { "offline", outcome.offline },
+                                        { "activated", processor.isActivated() } }));
+            });
         });
 }
 

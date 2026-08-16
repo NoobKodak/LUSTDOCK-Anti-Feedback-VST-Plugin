@@ -75,6 +75,26 @@ file(READ "${LOSTDUCK_SECRET_FILE}" LOSTDUCK_LICENCE_SECRET)
 string(STRIP "${LOSTDUCK_LICENCE_SECRET}" LOSTDUCK_LICENCE_SECRET)
 configure_file(cmake/LicenceSecret.h.in "${CMAKE_CURRENT_BINARY_DIR}/generated/LicenceSecret.h" @ONLY)
 
+# The activation public key, baked in so the plug-in can verify tokens offline.
+#
+# Unlike the secret above, this half is public by definition and is committed. Reading it
+# out of the binary buys an attacker nothing -- it verifies signatures, it cannot make
+# them. The matching private key exists only in Supabase's secret store.
+#
+# Generate the pair with: node tools/make-activation-keys.mjs
+set(LOSTDUCK_ACTIVATION_PUBLIC_FILE "${CMAKE_CURRENT_SOURCE_DIR}/cmake/activation-public-key.txt")
+
+if(NOT EXISTS "${LOSTDUCK_ACTIVATION_PUBLIC_FILE}")
+    message(FATAL_ERROR
+        "cmake/activation-public-key.txt is missing. Without it the plug-in cannot verify "
+        "any activation and every customer would be refused. Run: node tools/make-activation-keys.mjs")
+endif()
+
+file(READ "${LOSTDUCK_ACTIVATION_PUBLIC_FILE}" LOSTDUCK_ACTIVATION_PUBLIC_KEY)
+string(STRIP "${LOSTDUCK_ACTIVATION_PUBLIC_KEY}" LOSTDUCK_ACTIVATION_PUBLIC_KEY)
+configure_file(cmake/ActivationPublicKey.h.in
+               "${CMAKE_CURRENT_BINARY_DIR}/generated/ActivationPublicKey.h" @ONLY)
+
 # Windows shows a custom icon on a folder only when a desktop.ini points at one and the
 # folder carries the system attribute. A .vst3 bundle is a folder, so that is how it
 # gets an icon rather than anything in the VST3 spec.
@@ -209,6 +229,7 @@ target_sources(LostDuckAntiFeedback PRIVATE
     source/PluginEditor.cpp
     source/DemoGate.cpp
     source/FeedbackGuard.cpp
+    source/Activation.cpp
     source/Licence.cpp
     source/SpectralDenoiser.cpp
     source/WebResourceProvider.cpp)
@@ -317,10 +338,37 @@ if(LOSTDUCK_BUILD_HARNESS)
 
     set_target_properties(LostDuckValidate PROPERTIES FOLDER "LostDuck")
 
+    # Drives the real Activation class against the real server, so an activation can be
+    # tested in a second rather than by reinstalling the plug-in and opening a DAW.
+    juce_add_console_app(LostDuckActivationProbe PRODUCT_NAME "LostDuckActivationProbe")
+
+    target_sources(LostDuckActivationProbe PRIVATE
+        tools/ActivationProbe.cpp
+        source/Activation.cpp)
+
+    target_include_directories(LostDuckActivationProbe PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+    target_compile_definitions(LostDuckActivationProbe PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        JUCE_STANDALONE_APPLICATION=1)
+
+    target_link_libraries(LostDuckActivationProbe PRIVATE
+        juce::juce_core
+        juce::juce_cryptography
+        juce::juce_data_structures
+        juce::juce_events
+        PUBLIC
+        juce::juce_recommended_config_flags)
+
+    set_target_properties(LostDuckActivationProbe PROPERTIES FOLDER "LostDuck")
+
     # Mints licence keys. Compiles Licence.cpp directly so the generator and the plug-in
     # can never disagree about what a valid key is.
     juce_add_console_app(LostDuckKeyGen PRODUCT_NAME "LostDuckKeyGen")
 
+    # Only Licence.cpp: the generator mints keys and has no business talking to an
+    # activation server, so it deliberately does not compile Activation.cpp.
     target_sources(LostDuckKeyGen PRIVATE
         tools/KeyGen.cpp
         source/Licence.cpp)

@@ -4,6 +4,7 @@
 
 #include "DemoGate.h"
 #include "FeedbackGuard.h"
+#include "Activation.h"
 #include "Licence.h"
 #include "SpectralDenoiser.h"
 
@@ -64,19 +65,40 @@ public:
     bool isNoiseReady() const noexcept { return true; }
 
     //==============================================================================
-    bool isActivated() const noexcept { return licence.isActivated(); }
+    /*  Licensed either way.
+
+        `activation` is the current scheme: a token signed by the server, bound to this
+        machine, verified offline at every launch.
+
+        `licence` is the old offline-only scheme, kept because twelve people already
+        bought a key under it and must not have their plug-in stop working when they
+        update. It is checked as a fallback, never as the preferred path -- see
+        Activation.h for why the old scheme had to be replaced.                       */
+    bool isActivated() const noexcept
+    {
+        return activation.isActivated() || licence.isActivated();
+    }
+
     bool isDemoMuting() const noexcept { return demo.isMuting(); }
     float getDemoSecondsLeft() const noexcept { return demo.getSecondsUntilChange(); }
 
-    /** Message thread. Returns false and changes nothing if the key is not valid. */
-    bool activate (const juce::String& key)
+    /*  Message thread. Asks the server, which takes as long as the customer's connection
+        takes -- so the answer arrives by callback rather than as a return value, and the
+        interface stays alive while it happens.                                       */
+    void activateAsync (const juce::String& key,
+                        std::function<void (Activation::Outcome)> whenDone)
     {
-        if (! licence.activate (key))
-            return false;
+        activation.activateAsync (key, [this, whenDone] (Activation::Outcome outcome)
+        {
+            if (outcome.ok)
+                activated.store (true);
 
-        activated.store (true);
-        return true;
+            if (whenDone != nullptr)
+                whenDone (outcome);
+        });
     }
+
+    juce::String getMachineName() const { return Activation::machineName(); }
 
     void clearNotches() noexcept { engine.requestClear(); }
 
@@ -111,6 +133,7 @@ private:
         accepted. A plain bool would be a data race; the licence object itself is only
         touched from the message thread. */
     Licence licence;
+    Activation activation;
     std::atomic<bool> activated { false };
     DemoGate demo;
 

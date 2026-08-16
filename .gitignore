@@ -8,6 +8,11 @@ cmake/licence-secret.txt
 # Minted keys are stock -- 5,000 of them. Committing these is giving the product away.
 keys*.csv
 
+# Signs activation tokens. The public half beside it is committed on purpose; this half
+# would let anyone mint an activation for any machine.
+cmake/activation-private-key.SECRET.txt
+*.SECRET.txt
+
 # Supabase URL, publishable key, PayPal client id. The publishable ones are safe in a
 # browser but not worth putting in a repo, and this is the file a real secret would end
 # up in by accident.
