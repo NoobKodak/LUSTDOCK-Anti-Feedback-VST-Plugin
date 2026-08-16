@@ -108,6 +108,47 @@ export interface ReviewSummary {
   rows: Review[];
 }
 
+export interface ActivatedMachine {
+  activation_id: string;
+  key_code: string;
+  machine_name: string;
+  activated_at: string;
+  last_seen_at: string;
+  seat_limit: number;
+}
+
+/*  Which computers a licence is running on.
+
+    Proving the order is yours is the same pairing the lookup already demands -- number
+    plus the email it was bought with -- so this exposes nothing that page did not.   */
+export async function fetchActivations(
+  orderNumber: string,
+  email: string
+): Promise<Result<{ ok: true; rows: ActivatedMachine[] }>> {
+  return rpc("order_activations", {
+    p_order_number: orderNumber,
+    p_email: email,
+  });
+}
+
+/*  Frees a seat.
+
+    Deliberately does not require the machine to cooperate: the case this exists for is a
+    laptop that was sold, stolen or died, which cannot deactivate itself. Requiring the
+    machine to release its own seat would mean every dead computer became a support
+    email.                                                                             */
+export async function releaseActivation(
+  orderNumber: string,
+  email: string,
+  activationId: string
+): Promise<Result<{ ok: true }>> {
+  return rpc("release_activation", {
+    p_order_number: orderNumber,
+    p_email: email,
+    p_activation_id: activationId,
+  });
+}
+
 export interface IssuedKey {
   key_code: string;
   status: string;

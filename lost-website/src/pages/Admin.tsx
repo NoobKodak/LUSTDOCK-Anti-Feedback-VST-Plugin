@@ -16,8 +16,8 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const TOKEN_KEY = "lost.admin.token";
 
 type Tab =
-  | "dashboard" | "plugins" | "reviews" | "orders" | "keys" | "customers"
-  | "deliveries" | "releases" | "import" | "audit";
+  | "dashboard" | "plugins" | "reviews" | "orders" | "keys" | "activations"
+  | "customers" | "deliveries" | "releases" | "import" | "audit";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "dashboard", label: "Dashboard" },
@@ -25,6 +25,7 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "reviews", label: "Reviews" },
   { id: "orders", label: "Orders" },
   { id: "keys", label: "Keys" },
+  { id: "activations", label: "Activations" },
   { id: "customers", label: "Customers" },
   { id: "deliveries", label: "Deliveries" },
   { id: "releases", label: "Releases" },
@@ -78,6 +79,14 @@ interface ProductRow {
   highlights: unknown; features: unknown; specs: unknown; faq: unknown;
   keys_unused: number; keys_sold: number; paid_orders: number;
   revenue_cents: number; release_version: string | null;
+}
+
+interface ActivationRow {
+  key_code: string; product: string; seat_limit: number;
+  email: string | null; order_number: string | null;
+  live_seats: number; binds: number; auto_released: number;
+  last_seen_at: string;
+  machines: { id: string; name: string; activated_at: string }[];
 }
 
 interface ReviewRow {
@@ -220,6 +229,7 @@ export function Admin() {
   const [releases, setReleases] = useState<ReleaseRow[]>([]);
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [reviews, setReviews] = useState<ReviewRow[]>([]);
+  const [activations, setActivations] = useState<ActivationRow[]>([]);
   const [audit, setAudit] = useState<AuditRow[]>([]);
   const [detail, setDetail] = useState<OrderDetail | null>(null);
 
@@ -348,7 +358,7 @@ export function Admin() {
     setAuthFailed(false);
     setOverview(o as unknown as Overview);
 
-    const [s, ord, k, cust, del, rel, prod, rev, aud] = await Promise.all([
+    const [s, ord, k, cust, del, rel, prod, rev, act, aud] = await Promise.all([
       call("admin_sales_series", { p_days: 30, p_slug: slug }),
       call("admin_orders", {
         p_limit: PAGE, p_slug: slug, p_search: query || null,
@@ -363,6 +373,7 @@ export function Admin() {
       call("admin_releases", { p_slug: slug }),
       call("admin_product_stats"),
       call("admin_reviews"),
+      call("admin_activations", { p_search: query || null, p_limit: 200 }),
       call("admin_audit_log", { p_limit: 200 }),
     ]);
 
@@ -373,6 +384,7 @@ export function Admin() {
     if (del.ok) setDeliveries(del.rows ?? []);
     if (rel.ok) setReleases(rel.rows ?? []);
     if (rev.ok) setReviews(rev.rows ?? []);
+    if (act.ok) setActivations(act.rows ?? []);
     if (aud.ok) setAudit(aud.rows ?? []);
 
     if (prod.ok) {
@@ -853,6 +865,84 @@ export function Admin() {
               page={keyPage} pageSize={PAGE} total={keyTotal} busy={busy}
               onPage={setKeyPage}
             />
+          </>
+        )}
+
+        {/* --------------------------------------------------- activations */}
+        {tab === "activations" && (
+          <>
+            <div className="notice notice-info">
+              Each licence runs on up to its seat limit. The column to watch is{" "}
+              <b>binds</b> &mdash; how many machines a key has <i>ever</i> been on. A key
+              sitting at 3 of 3 is somebody with a studio, a stage laptop and a spare. A
+              key bound to fourteen machines is a key somebody has published.
+            </div>
+
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Key</th><th>Customer</th><th>Seats</th><th>Binds</th>
+                    <th>Machines</th><th>Last seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activations.length === 0 && (
+                    <tr><td colSpan={6} className="muted">
+                      Nothing activated yet. Keys appear here once a customer activates one.
+                    </td></tr>
+                  )}
+                  {activations.map((a) => (
+                    <tr key={a.key_code}>
+                      <td className="mono">{a.key_code}</td>
+                      <td>
+                        {a.email ?? "—"}
+                        {a.order_number && <div className="small muted">{a.order_number}</div>}
+                      </td>
+                      <td>
+                        <span className={`pill ${a.live_seats >= a.seat_limit ? "pill-unused" : "pill-used"}`}>
+                          {a.live_seats} / {a.seat_limit}
+                        </span>
+                      </td>
+                      <td>
+                        {/*  Flagged once a key has been bound to more machines than the
+                            seat limit plus its grace allowance -- the point past which
+                            re-installs stop being a plausible explanation.            */}
+                        <span style={{ color: a.binds > a.seat_limit + 2 ? "var(--destructive)" : undefined }}>
+                          {a.binds}
+                        </span>
+                        {a.auto_released > 0 && (
+                          <div className="small muted">{a.auto_released} auto-freed</div>
+                        )}
+                      </td>
+                      <td style={{ whiteSpace: "normal", maxWidth: 320 }}>
+                        {a.machines.length === 0 && <span className="muted">none</span>}
+                        {a.machines.map((m) => (
+                          <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 8 }}>
+                            <span>{m.name}</span>
+                            <button
+                              className="copy-btn"
+                              onClick={() => confirmAct(
+                                {
+                                  title: "Release this seat?",
+                                  body: `${m.name} will stop running ${a.key_code}. The customer can activate it again, and this frees a seat for another machine.`,
+                                  confirm: "Release it",
+                                },
+                                "admin_release_activation", { p_id: m.id },
+                                `${m.name} released.`
+                              )}
+                            >
+                              release
+                            </button>
+                          </span>
+                        ))}
+                      </td>
+                      <td>{when(a.last_seen_at)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </>
         )}
 
