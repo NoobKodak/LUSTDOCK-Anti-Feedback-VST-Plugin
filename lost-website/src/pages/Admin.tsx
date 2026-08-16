@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { megabytes } from "../components/Download";
 import { money, supabase } from "../lib/supabase";
@@ -148,6 +148,20 @@ function Sparkline({ series }: { series: SeriesRow[] }) {
   );
 }
 
+/*  How many rows the importer will actually try.
+
+    Counts lines that look like key data rather than lines in the file, so the button can
+    say "Import 5000 keys" instead of the meaningless character count of a 200 KB paste.
+    A header row and blank lines are skipped here exactly as the server skips them, so
+    the number on the button is the number that will be attempted.                     */
+function countKeyRows(csv: string): number {
+  return csv
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && /[A-Za-z0-9]{4}-[A-Za-z0-9]{4}/.test(line))
+    .length;
+}
+
 /*  One pager for every list.
 
     Shows the range actually on screen against the true total, so "26–50 of 312" answers
@@ -237,7 +251,51 @@ export function Admin() {
   const [orderTotal, setOrderTotal] = useState(0);
   const [keyTotal, setKeyTotal] = useState(0);
 
+  const [reviewFilter, setReviewFilter] = useState("");
   const [csv, setCsv] = useState("");
+
+  const [dragging, setDragging] = useState(false);
+  const [fileNote, setFileNote] = useState<string | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /*  Reads a dropped or chosen file into the textarea.
+
+      Everything is checked before the contents are shown: the wrong file dropped by
+      accident should say so rather than filling the box with binary. The 5 MB ceiling is
+      well past a 5,000-key CSV (~200 KB) and well short of anything that would lock the
+      browser up while it renders.                                                     */
+  const takeFile = async (file?: File) => {
+    if (!file) return;
+
+    setError(null);
+    setMessage(null);
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError(`${file.name} is ${(file.size / 1024 / 1024).toFixed(1)} MB. The importer takes files up to 5 MB.`);
+      return;
+    }
+
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".csv") && !name.endsWith(".txt")) {
+      setError(`${file.name} is not a .csv or .txt file.`);
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = countKeyRows(text);
+
+      if (rows === 0) {
+        setError(`${file.name} has no rows that look like licence keys. Expected "serial,key" per line.`);
+        return;
+      }
+
+      setCsv(text);
+      setFileNote(`${file.name} — ${rows.toLocaleString()} key${rows === 1 ? "" : "s"} found`);
+    } catch {
+      setError(`Could not read ${file.name}.`);
+    }
+  };
   const [draft, setDraft] = useState<ProductRow | null>(null);
 
   /* Empty means the whole store. Every list, the dashboard and the importer all read
@@ -422,6 +480,15 @@ export function Admin() {
       pager lie about what is on screen.                                              */
   const filteredOrders = orders;
   const filteredKeys = keys;
+
+  /*  Reviews are filtered here rather than on the server: there will never be enough of
+      them to page, and moderation means flicking between "what is live" and "what is
+      waiting" constantly. A round trip for that would be slower than it is worth.    */
+  const visibleReviews = reviews.filter((r) =>
+    reviewFilter === "shown" ? r.is_approved
+    : reviewFilter === "hidden" ? !r.is_approved
+    : reviewFilter === "sample" ? r.is_sample
+    : true);
 
   //=================================================================== sign in
   if (!token || authFailed) {
@@ -955,55 +1022,85 @@ export function Admin() {
               </div>
             )}
 
-            <div className="table-wrap" style={{ marginBottom: 20 }}>
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Plug-in</th><th>Who</th><th>Rating</th><th>Review</th>
-                    <th>Shown</th><th>Added</th><th />
-                  </tr>
-                </thead>
-                <tbody>
-                  {reviews.length === 0 && (
-                    <tr><td colSpan={7} className="muted">
-                      No reviews yet. Add one below as customers send them in.
-                    </td></tr>
-                  )}
-                  {reviews.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.product}</td>
-                      <td>
-                        {r.author_name}
-                        {r.is_sample && <span className="pill" style={{ marginLeft: 6 }}>sample</span>}
-                        {r.author_role && (
-                          <div className="small muted">{r.author_role}</div>
-                        )}
-                      </td>
-                      <td style={{ whiteSpace: "nowrap" }}>{"★".repeat(r.rating)}</td>
-                      <td style={{ whiteSpace: "normal", maxWidth: 380 }}>
-                        {r.title && <b>{r.title}<br /></b>}
-                        <span className="muted">{r.body}</span>
-                      </td>
-                      <td>
+            {/*  Cards, not a table.
+
+                A review is a paragraph of somebody's prose. In a table it was squeezed
+                into a 380px cell while Plug-in and Added -- the two things you never
+                need -- took a full column each. What actually matters when moderating is
+                the words, the rating, and whether it is on the shop; so the words get the
+                width, and everything else arranges itself around them.               */}
+            <div className="toolbar">
+              <div className="tabs" style={{ margin: 0 }}>
+                {["", "shown", "hidden", "sample"].map((f) => (
+                  <button
+                    key={f || "all"}
+                    className={reviewFilter === f ? "is-on" : ""}
+                    onClick={() => setReviewFilter(f)}
+                  >
+                    {f || "all"}
+                  </button>
+                ))}
+              </div>
+              <span className="small muted" style={{ marginLeft: "auto" }}>
+                {visibleReviews.length} of {reviews.length}
+              </span>
+            </div>
+
+            {visibleReviews.length === 0 ? (
+              <div className="panel" style={{ textAlign: "center", padding: "2.5rem 1.5rem" }}>
+                <p className="eyebrow">Nothing here</p>
+                <p className="small muted" style={{ marginTop: 6 }}>
+                  {reviews.length === 0
+                    ? "No reviews yet. Add the first one below as customers send them in."
+                    : "No reviews match that filter."}
+                </p>
+              </div>
+            ) : (
+              <div className="review-grid">
+                {visibleReviews.map((r) => (
+                  <article key={r.id} className={`review-card${r.is_approved ? "" : " is-hidden"}`}>
+                    <header className="review-head">
+                      <div>
+                        <span className="review-stars" title={`${r.rating} out of 5`}>
+                          {"★".repeat(r.rating)}
+                          <span className="review-stars-dim">{"★".repeat(5 - r.rating)}</span>
+                        </span>
+                        <div className="review-who">
+                          {r.author_name}
+                          {r.is_sample && <span className="pill" style={{ marginLeft: 8 }}>sample</span>}
+                        </div>
+                        {r.author_role && <div className="small muted">{r.author_role}</div>}
+                      </div>
+
+                      <span className={`pill ${r.is_approved ? "pill-used" : "pill-unused"}`}>
+                        {r.is_approved ? "on the shop" : "hidden"}
+                      </span>
+                    </header>
+
+                    {r.title && <h4 className="review-title">{r.title}</h4>}
+                    <p className="review-body">{r.body}</p>
+
+                    <footer className="review-foot">
+                      <span className="small muted">{r.product} &middot; {when(r.created_at)}</span>
+
+                      <div className="review-actions">
                         <button
-                          className="btn btn-sm"
+                          className="copy-btn"
                           onClick={() => void act(
                             "admin_set_review",
                             { p_id: r.id, p_approved: !r.is_approved },
-                            r.is_approved ? "Hidden." : "Published."
+                            r.is_approved ? "Taken off the shop." : "Published."
                           )}
                         >
-                          {r.is_approved ? "on the shop" : "hidden"}
+                          {r.is_approved ? "Hide" : "Publish"}
                         </button>
-                      </td>
-                      <td>{when(r.created_at)}</td>
-                      <td>
+
                         <button
                           className="btn btn-sm btn-danger"
                           onClick={() => confirmAct(
                             {
                               title: "Delete this review?",
-                              body: `${r.author_name}'s review will be removed permanently. To take it off the shop without losing it, use Shown instead.`,
+                              body: `${r.author_name}'s review will be removed permanently. To take it off the shop without losing it, use Hide instead.`,
                               confirm: "Delete it",
                             },
                             "admin_delete_review", { p_id: r.id }, "Review deleted."
@@ -1011,18 +1108,20 @@ export function Admin() {
                         >
                           Delete
                         </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      </div>
+                    </footer>
+                  </article>
+                ))}
+              </div>
+            )}
 
-            <AddReview
-              products={products}
-              defaultSlug={scope || products[0]?.slug || ""}
-              onAdd={(args) => void act("admin_add_review", args, "Review added.")}
-            />
+            <div style={{ marginTop: 20 }}>
+              <AddReview
+                products={products}
+                defaultSlug={scope || products[0]?.slug || ""}
+                onAdd={(args) => void act("admin_add_review", args, "Review added.")}
+              />
+            </div>
           </>
         )}
 
@@ -1245,32 +1344,90 @@ export function Admin() {
               </p>
             </div>
 
-            <textarea
-              className="input"
-              placeholder={"serial,key\n10000089,K2BD-JDAK-C2ME-AEPQ"}
-              value={csv}
-              onChange={(e) => setCsv(e.target.value)}
-            />
+            {/*  Drop the file rather than opening it, selecting all, and pasting.
 
-            <button
-              className="btn btn-mint btn-block"
-              style={{ marginTop: 14 }}
-              disabled={busy || csv.trim() === "" || !importSlug}
-              onClick={async () => {
-                const r = await call("admin_import_keys", { p_product_slug: importSlug, p_csv: csv });
-
-                if (r.ok) {
-                  setMessage(`Imported ${r.added} keys. ${r.skipped} skipped (duplicate or malformed).`);
-                  setError(null);
-                  setCsv("");
-                  void refresh();
-                } else {
-                  setError(r.error ?? "Import failed.");
-                }
-              }}
+                keys.csv is 5,000 lines. Pasting that means a text editor, a select-all,
+                and a paste into a textarea that then has to render it -- and the file is
+                sitting right there in Explorer. Dropping is the shorter path, and the
+                textarea stays for the case where somebody has a handful of keys in an
+                email rather than a file.                                              */}
+            <div
+              className={`dropzone${dragging ? " is-over" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(e) => { e.preventDefault(); setDragging(false); void takeFile(e.dataTransfer.files?.[0]); }}
+              onClick={() => fileInput.current?.click()}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") fileInput.current?.click(); }}
+              aria-label="Drop a CSV of keys here, or click to choose one"
             >
-              Import
-            </button>
+              <input
+                ref={fileInput}
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                style={{ display: "none" }}
+                onChange={(e) => { void takeFile(e.target.files?.[0]); e.target.value = ""; }}
+              />
+
+              <p className="dropzone-title">
+                {dragging ? "Let go to read it" : "Drop keys.csv here"}
+              </p>
+              <p className="small muted">or click to choose a file &middot; .csv or .txt, up to 5 MB</p>
+
+              {fileNote && <p className="dropzone-note">{fileNote}</p>}
+            </div>
+
+            <div className="field" style={{ marginTop: 14 }}>
+              <label>
+                {csv.trim() === ""
+                  ? "…or paste the rows"
+                  : `${countKeyRows(csv)} rows ready to import`}
+              </label>
+              <textarea
+                className="input"
+                placeholder={"serial,key\n10000089,K2BD-JDAK-C2ME-AEPQ"}
+                value={csv}
+                onChange={(e) => { setCsv(e.target.value); setFileNote(null); }}
+              />
+            </div>
+
+            <div className="row" style={{ marginTop: 14 }}>
+              <button
+                className="btn btn-ghost"
+                disabled={csv === ""}
+                onClick={() => { setCsv(""); setFileNote(null); }}
+              >
+                Clear
+              </button>
+
+              <button
+                className="btn btn-mint"
+                disabled={busy || countKeyRows(csv) === 0 || !importSlug}
+                onClick={async () => {
+                  const r = await call("admin_import_keys", { p_product_slug: importSlug, p_csv: csv });
+
+                  if (r.ok) {
+                    setMessage(
+                      `Imported ${r.added} key${r.added === 1 ? "" : "s"}.` +
+                      (r.skipped ? ` ${r.skipped} skipped — already in stock or malformed.` : "")
+                    );
+                    setError(null);
+                    setCsv("");
+                    setFileNote(null);
+                    void refresh();
+                  } else {
+                    setError(r.error ?? "Import failed.");
+                  }
+                }}
+              >
+                {busy
+                  ? "Importing"
+                  : countKeyRows(csv) === 0
+                    ? "Nothing to import"
+                    : `Import ${countKeyRows(csv)} key${countKeyRows(csv) === 1 ? "" : "s"}`}
+              </button>
+            </div>
           </div>
         )}
 

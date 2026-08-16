@@ -551,6 +551,94 @@
   .admin-side button::before { display: none; }
 }
 
+/* -------------------------------------------------------- review cards */
+.review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+  gap: 0.9rem;
+}
+
+.review-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.15rem;
+}
+
+/*  A hidden review is still on the page but is not on the shop. Dimming it says that at
+    a glance, so moderating is scanning rather than reading every status pill.        */
+.review-card.is-hidden { opacity: 0.62; }
+.review-card.is-hidden:hover { opacity: 1; }
+
+.review-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.review-stars { font-size: 0.85rem; letter-spacing: 0.08em; color: var(--primary); }
+.review-stars-dim { color: color-mix(in srgb, var(--foreground) 22%, transparent); }
+.review-who { font-size: 0.85rem; font-weight: 700; margin-top: 0.3rem; }
+
+.review-title { margin: 0 0 0.35rem; font-size: 0.9rem; }
+
+/*  The reason this is a card and not a table cell: prose needs a measure. Clamped so one
+    long review cannot make its card three times the height of its neighbours -- the full
+    text is a click away on the shop.                                                  */
+.review-body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.review-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: 0.9rem;
+}
+
+.review-actions { display: flex; gap: 0.5rem; }
+
+/* ------------------------------------------------------------ dropzone */
+.dropzone {
+  border: 2px dashed var(--input);
+  border-radius: var(--radius);
+  padding: 2.1rem 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+
+.dropzone:hover { border-color: var(--primary); }
+
+/* The whole target lights up while a file is over it, so it is obvious where to let go. */
+.dropzone.is-over {
+  border-color: var(--primary);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+}
+
+.dropzone-title { margin: 0 0 0.3rem; font-size: 0.95rem; font-weight: 700; }
+
+.dropzone-note {
+  margin: 0.9rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--duck-mint);
+}
+
 /* ---------------------------------------------------------------- pager */
 .pager {
   display: flex;
