@@ -56,7 +56,7 @@ export function Header() {
       <div className="mx-auto flex w-full max-w-[1400px] flex-col items-center px-6 sm:px-10">
         <Link to="/" aria-label="LOST — home" className="inline-block">
           <img
-            src="/brand/logo-lost.svg"
+            src="/brand/logo-lost.webp"
             alt="LOST"
             className="h-[100px] w-auto"
             draggable={false}

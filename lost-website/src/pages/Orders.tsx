@@ -44,7 +44,7 @@ export function Orders() {
           says what the page is, and "LOST logo" read aloud before it adds nothing.    */}
       <div className="flex flex-col items-center gap-6 text-center sm:flex-row sm:items-center sm:gap-10 sm:text-left">
         <img
-          src="/brand/runlogo.svg"
+          src="/brand/runlogo.webp"
           alt=""
           aria-hidden="true"
           className="w-[92px] shrink-0 animate-run-in sm:w-[124px]"

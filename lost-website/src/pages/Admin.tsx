@@ -1143,7 +1143,7 @@ export function Admin() {
 
                   <div className="field">
                     <label>Image path</label>
-                    <input className="input" placeholder="/brand/newcasing.svg" value={draft.image_path ?? ""}
+                    <input className="input" placeholder="/brand/newcasing.webp" value={draft.image_path ?? ""}
                            onChange={(e) => setDraft({ ...draft, image_path: e.target.value })} />
                   </div>
 
@@ -1160,7 +1160,7 @@ export function Admin() {
                     </div>
                     <div className="field">
                       <label>Demo poster path</label>
-                      <input className="input" placeholder="/brand/plugin.svg"
+                      <input className="input" placeholder="/brand/plugin.webp"
                              value={draft.demo_poster_path ?? ""}
                              onChange={(e) => setDraft({ ...draft, demo_poster_path: e.target.value })} />
                     </div>

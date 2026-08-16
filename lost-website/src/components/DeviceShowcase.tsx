@@ -19,11 +19,11 @@ import { cn } from "@/lib/utils";
     top of the rest and takes the largest drift.                                       */
 
 const LAYERS = [
-  { src: "/brand/layers/1.svg" },
-  { src: "/brand/layers/2.svg" },
-  { src: "/brand/layers/4.svg" },
-  { src: "/brand/layers/5.svg" },
-  { src: "/brand/layers/3.svg" },   // front
+  { src: "/brand/layers/1.webp" },
+  { src: "/brand/layers/2.webp" },
+  { src: "/brand/layers/4.webp" },
+  { src: "/brand/layers/5.webp" },
+  { src: "/brand/layers/3.webp" },   // front
 ];
 
 const LAST = LAYERS.length - 1;

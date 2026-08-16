@@ -37,7 +37,7 @@ export function Landing({ products }: { products: Product[] }) {
       <section className="mx-auto grid w-full max-w-[1400px] items-center gap-10 px-6 pt-6 pb-16 sm:px-10 lg:grid-cols-[minmax(0,0.62fr)_minmax(0,0.92fr)] lg:gap-12">
         <div>
           <img
-            src="/brand/lost-duck-text-logo.svg"
+            src="/brand/lost-duck-text-logo.webp"
             alt={lead.name}
             className="mb-7 w-full max-w-[327px]"
             draggable={false}
