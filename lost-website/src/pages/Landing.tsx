@@ -5,7 +5,8 @@ import { DeviceShowcase } from "@/components/DeviceShowcase";
 import { Reviews } from "@/components/Reviews";
 import { PluginRow } from "@/pages/Plugins";
 import { Button } from "@/components/ui/button";
-import { money, type Product } from "@/lib/supabase";
+import { Badge } from "@/components/ui/misc";
+import { money, saving, type Product } from "@/lib/supabase";
 
 /*  The front page.
 
@@ -51,9 +52,47 @@ export function Landing({ products }: { products: Product[] }) {
             <p className="max-w-[58ch] t-body text-foreground/80">{lead.description}</p>
           )}
 
+          {/*  The price, above the buttons.
+
+              Same arrangement as the product page rather than a second treatment of the
+              same idea: the number leads, the old price is struck through beside it, and
+              the saving is a badge. Putting any of that inside the button would turn a
+              button into a paragraph you can click.
+
+              Reads `saving`, so a plug-in with no compare-at price simply shows its
+              price and nothing else -- the offer is data, not markup.                 */}
+          {(() => {
+            const offer = saving(lead);
+
+            return (
+              <>
+                <div className="mt-10 flex flex-wrap items-end gap-x-4 gap-y-2">
+                  <span className="t-display t-numeric leading-none">
+                    {money(lead.price_cents, lead.currency)}
+                  </span>
+
+                  {offer && (
+                    <>
+                      <span className="t-body t-numeric text-muted-foreground line-through decoration-2">
+                        {offer.wasText}
+                      </span>
+                      <Badge className="mb-1">Save {offer.offText}</Badge>
+                    </>
+                  )}
+                </div>
+
+                {offer && (
+                  <p className="mt-2 t-small text-muted-foreground">
+                    Launch offer &mdash; {offer.percent}% off while the first run lasts.
+                  </p>
+                )}
+              </>
+            );
+          })()}
+
           {/* Widths and the gap between them come from Figma: 521 and 637 wide, 154
               apart, in a 4686 frame -- 156px, 190px and 46px once scaled. */}
-          <div className="mt-10 flex flex-wrap items-center gap-x-[46px] gap-y-4">
+          <div className="mt-7 flex flex-wrap items-center gap-x-[46px] gap-y-4">
             {lead.in_stock ? (
               <Button asChild size="lg" className="w-[156px] px-0">
                 <Link to={`/checkout/${lead.slug}`}>
