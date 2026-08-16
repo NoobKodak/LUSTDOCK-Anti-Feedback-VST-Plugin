@@ -1,0 +1,666 @@
+/* Geometry mirrors ui/src/layout.ts. Change both together. */
+:root {
+  --ui-scale: 1;
+
+  --design-w: 1430px;
+  --design-h: 804px;
+
+  --screen-x: 64px;
+  --screen-y: 52px;
+  --screen-w: 575px;
+  --screen-h: 527px;
+  --screen-r: 230px;
+
+  /* btnnoise.svg is the rotating face only; the tick ring and the 0/100 legends stay
+     on the casing. Solved by matching the black indicator slot in the artwork to the
+     one in the asset: 5 x 31 px centred on 818, 575 in the casing, against 24.66 x
+     134.36 centred on 351.47, 124.62 inside the asset's own 701 px canvas. */
+  --knob-x: 736.9px;
+  --knob-y: 546.2px;
+  --knob-size: 161.7px;
+
+  /* Not measured -- newcasing.svg declares this rect itself, as an 83 x 154 rect at
+     972, 570 using the same 800px source image as noiseswitch on.svg. */
+  --switch-x: 972px;
+  --switch-y: 570px;
+  --switch-w: 83px;
+  --switch-h: 154px;
+
+  /* button.svg's own 712 x 727 canvas, placed so its ellipse lands exactly on the
+     button already painted into newcasing.svg.
+
+     Not the box it looks like from the outside: button.svg is an ellipse flush to the
+     LEFT edge of its canvas with the entire drop shadow padded onto the right and
+     bottom, so the canvas has to sit up and left of the visible button.
+
+     Solved rather than eyeballed, by locating the orange dome in both PNGs. In
+     newcasing.svg it is 135 px across centred on (1181, 300) -- it shrank and moved
+     right when the casing was redrawn for the knob -- and in button.svg it is 479.4 px
+     across centred on (322.3, 331.2) once the pattern transform is applied. */
+  --power-x: 1090.2px;
+  --power-y: 206.8px;
+  --power-w: 200.5px;
+  --power-h: 204.7px;
+
+  /* A hair oversized so no rim of the painted copy shows around the overlay. */
+  --power-cover: 1.03;
+
+  --hud-font: "Consolas", "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.viewport {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* One transform for the whole panel: everything inside is authored at 1430 x 795 and
+   never has to know what size the host actually opened the editor at. */
+.stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--design-w);
+  height: var(--design-h);
+  transform: scale(var(--ui-scale));
+  transform-origin: 0 0;
+}
+
+.casing {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--design-w);
+  height: var(--design-h);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Screen
+   ========================================================================== */
+.screen {
+  position: absolute;
+  left: var(--screen-x);
+  top: var(--screen-y);
+  width: var(--screen-w);
+  height: var(--screen-h);
+  border-radius: var(--screen-r);
+  overflow: hidden;
+  background: #000000;
+  box-shadow:
+    inset 0 0 70px rgba(0, 0, 0, 0.95),
+    inset 0 2px 4px rgba(255, 255, 255, 0.06);
+}
+
+.scope {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* Curved highlight across the top of the glass, matching the casing render. */
+.screen-glass {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 60% at 30% -12%, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 60%),
+    radial-gradient(100% 100% at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, 0.55) 100%);
+}
+
+.hud {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--hud-font);
+  color: #6f8ea3;
+}
+
+.hud-title {
+  position: absolute;
+  top: 46px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 20px;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: #4d6b80;
+  text-shadow: 0 0 14px rgba(77, 107, 128, 0.55);
+}
+
+.hud-foot {
+  position: absolute;
+  bottom: 52px;
+  left: 15%;
+  right: 15%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 21px;
+  letter-spacing: 0.16em;
+}
+
+.hud-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  color: #5d7d92;
+}
+
+.hud-status.is-live {
+  color: #3df2a0;
+  text-shadow: 0 0 16px rgba(61, 242, 160, 0.5);
+}
+
+.hud-status.is-working {
+  color: #ffa32e;
+  text-shadow: 0 0 16px rgba(255, 163, 46, 0.5);
+}
+
+/* The frequencies the detector has parked filters on. Newest first, so the one that
+   just appeared is the one nearest the top. */
+.hud-notches {
+  position: absolute;
+  top: 96px;
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 14px;
+  font-size: 17px;
+  letter-spacing: 0.1em;
+  color: #ffa32e;
+  text-shadow: 0 0 12px rgba(255, 163, 46, 0.45);
+}
+
+.hud-notches li::after {
+  content: " Hz";
+  opacity: 0.45;
+}
+
+.lamp {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 12px currentColor;
+  opacity: 0.85;
+}
+
+.hud-status.is-live .lamp {
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+/* Noise state, shown on the screen so the switch position is readable without looking
+   down at the casing. The artwork is a 24px icon, so it is scaled up here. */
+.hud-noise-indicator {
+  width: 34px;
+  height: 34px;
+  display: block;
+  opacity: 0.95;
+}
+
+.hud-noise-indicator.is-off {
+  opacity: 0.45;
+  filter: grayscale(0.7);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Transient percent readout, centred over the waveform while the knob is turning. */
+.hud-noise-value {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 4px;
+  color: #ffe100;
+  text-shadow: 0 0 22px rgba(255, 225, 0, 0.45);
+  animation: noise-value-in 120ms ease-out;
+}
+
+@keyframes noise-value-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scale(0.94);
+  }
+}
+
+.hud-noise-value-number {
+  font-size: 118px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.hud-noise-value-unit {
+  font-size: 46px;
+  font-weight: 700;
+  opacity: 0.8;
+}
+
+.hud-noise-value-label {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 10px;
+  text-align: center;
+  font-size: 17px;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  opacity: 0.65;
+}
+
+.hud-shift {
+  position: absolute;
+  bottom: 22px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  color: #46627a;
+}
+
+/* ==========================================================================
+   Licensing
+   ========================================================================== */
+/* Below the title, not beside it.
+   The screen has a 230px corner radius, so the top right is mostly curve: at y = 44 the
+   glass edge is already inset about 95px, which pushed the badge inwards until it landed
+   on the centred title. By y = 104 that inset is down to about 38px, so the badge can
+   sit near the right edge and stay clear of both the curve and the title. */
+.hud-demo {
+  position: absolute;
+  top: 104px;
+  right: 56px;
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  color: #ff6b6b;
+  background: rgba(255, 60, 60, 0.1);
+  border: 1px solid rgba(255, 90, 90, 0.45);
+  border-radius: 999px;
+  padding: 4px 13px;
+}
+
+.hud-demo:hover {
+  background: rgba(255, 60, 60, 0.22);
+  color: #ffb4b4;
+}
+
+/* Pulses only while audio is actually silenced, so the badge explains the gap rather
+   than blinking for its own sake. */
+.hud-demo.is-muting {
+  animation: demo-pulse 1s ease-in-out infinite;
+}
+
+@keyframes demo-pulse {
+  50% {
+    background: rgba(255, 60, 60, 0.34);
+    color: #fff;
+  }
+}
+
+.hud-activate {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: radial-gradient(120% 90% at 50% 50%, rgba(4, 10, 16, 0.95), rgba(2, 5, 8, 0.99));
+  animation: picker-in 120ms ease-out;
+}
+
+.hud-activate-label {
+  font-size: 15px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #4d6b80;
+}
+
+/* Two rows of two groups, not one row of four.
+   Sixteen boxes in a line is roughly 480px of content, and the screen is a 575px circle.
+   Across the vertical middle that nearly fits, but it reads as though it is bursting out
+   of the glass and the end boxes ride the curve. Stacked, the block is about 290 x 100
+   and sits comfortably inside. */
+.hud-otp {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-content: center;
+  gap: 14px 20px;
+}
+
+.hud-otp-group {
+  display: flex;
+  gap: 5px;
+}
+
+.hud-otp-box {
+  width: 30px;
+  height: 42px;
+  text-align: center;
+  font-family: inherit;
+  font-size: 23px;
+  text-transform: uppercase;
+  color: #cfe2ee;
+  background: rgba(120, 190, 255, 0.07);
+  border: 1px solid rgba(120, 190, 255, 0.3);
+  border-radius: 7px;
+  caret-color: #3df2a0;
+  transition: border-color 120ms ease-out, background 120ms ease-out;
+}
+
+.hud-otp-box:focus {
+  outline: none;
+  border-color: #3df2a0;
+  background: rgba(61, 242, 160, 0.12);
+}
+
+.hud-otp.is-bad .hud-otp-box {
+  border-color: rgba(255, 90, 90, 0.75);
+  background: rgba(255, 60, 60, 0.12);
+  animation: otp-shake 260ms ease-out;
+}
+
+@keyframes otp-shake {
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.hud-activate-status {
+  min-height: 18px;
+  font-size: 14px;
+  letter-spacing: 0.26em;
+  text-indent: 0.26em;
+}
+
+.hud-activate-status.is-bad { color: #ff6b6b; }
+.hud-activate-status.is-good { color: #3df2a0; }
+.hud-activate-status.is-checking { color: #6f8ea3; }
+.hud-activate-status.is-idle { color: transparent; }
+
+/* The notch limit picker: takes over the screen rather than dropping a native combo
+   box on top of the artwork, which never looked like part of the device. */
+.hud-picker {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: radial-gradient(120% 90% at 50% 50%, rgba(4, 10, 16, 0.94), rgba(2, 5, 8, 0.98));
+  animation: picker-in 120ms ease-out;
+}
+
+@keyframes picker-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.hud-picker-label {
+  font-size: 17px;
+  letter-spacing: 0.42em;
+  text-indent: 0.42em;
+  color: #4d6b80;
+}
+
+/* Scrolls vertically. The mask fades the ends so the list reads as a wheel rather
+   than a box that has been cut off. */
+.hud-picker-list {
+  width: 190px;
+  height: 250px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+  padding: 105px 0;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 22%,
+    #000 78%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 22%,
+    #000 78%,
+    transparent 100%
+  );
+}
+
+.hud-picker-list::-webkit-scrollbar {
+  display: none;
+}
+
+.hud-picker-item {
+  display: block;
+  width: 100%;
+  scroll-snap-align: center;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+  font-size: 46px;
+  line-height: 1.16;
+  color: #35566b;
+  transition: color 120ms ease-out, transform 120ms ease-out;
+}
+
+.hud-picker-item:hover {
+  color: #9fc4d8;
+}
+
+.hud-picker-item.is-current {
+  color: #ffe100;
+  text-shadow: 0 0 22px rgba(255, 225, 0, 0.4);
+  transform: scale(1.12);
+}
+
+.hud-picker-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.hud-picker-close:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.hud-picker-close {
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  color: #6f8ea3;
+  background: transparent;
+  border: 1px solid rgba(120, 190, 255, 0.28);
+  border-radius: 999px;
+  padding: 6px 20px;
+}
+
+.hud-picker-close:hover {
+  color: #cfe2ee;
+  border-color: rgba(120, 190, 255, 0.5);
+}
+
+/* Opens the picker, which is why it is a real button. */
+.hud-count {
+  pointer-events: auto;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  font-variant-numeric: tabular-nums;
+  color: #7f97a8;
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.hud-count:hover {
+  color: #cfe2ee;
+}
+
+/* ==========================================================================
+   Power button
+   ========================================================================== */
+.power {
+  position: absolute;
+  left: var(--power-x);
+  top: var(--power-y);
+  width: var(--power-w);
+  height: var(--power-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: scale(var(--power-cover));
+  transform-origin: center center;
+  transition: transform 90ms ease-out, filter 160ms ease-out;
+}
+
+.power img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.power:focus-visible {
+  outline: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Greyscale rather than desaturation: pulling the saturation out of the orange leaves
+   it muddy brown, where greyscale reads as an unlit lamp. */
+.power.is-off {
+  transform: scale(calc(var(--power-cover) * 0.985));
+  filter: grayscale(0.82) brightness(0.9);
+}
+
+.power:active {
+  transform: scale(calc(var(--power-cover) * 0.965));
+}
+
+/* ==========================================================================
+   Noise knob and switch
+   ========================================================================== */
+.noise-knob {
+  position: absolute;
+  left: var(--knob-x);
+  top: var(--knob-y);
+  width: var(--knob-size);
+  height: var(--knob-size);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+/* Switched off: the knob simply stops responding. No dimming, no greyscale -- the
+   artwork stays exactly as drawn, and only the drag cursor goes away so it does not
+   advertise a gesture that will not do anything. */
+.noise-knob.is-disabled {
+  cursor: default;
+}
+
+.noise-knob img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+  /* No transition: the knob must track the pointer exactly, and any easing here reads
+     as lag rather than polish. Host automation moves it too. */
+  will-change: transform;
+}
+
+.noise-knob:focus-visible {
+  outline: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+.noise-switch {
+  position: absolute;
+  left: var(--switch-x);
+  top: var(--switch-y);
+  width: var(--switch-w);
+  height: var(--switch-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.noise-switch img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.noise-switch:focus-visible {
+  outline: none;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 0 0 6px rgba(0, 0, 0, 0.35);
+}
+
+.noise-switch:active img {
+  transform: scale(0.97);
+}

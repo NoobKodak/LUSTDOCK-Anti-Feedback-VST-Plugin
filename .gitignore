@@ -1,0 +1,61 @@
+# =============================================================================
+#  Things that must never be committed
+# =============================================================================
+# Whoever holds this can mint licence keys for every copy ever sold, and there is
+# no way to revoke keys already issued. Losing it is bad; publishing it is fatal.
+cmake/licence-secret.txt
+
+# Minted keys are stock -- 5,000 of them. Committing these is giving the product away.
+keys*.csv
+
+# Supabase URL, publishable key, PayPal client id. The publishable ones are safe in a
+# browser but not worth putting in a repo, and this is the file a real secret would end
+# up in by accident.
+.env
+.env.*
+!.env.example
+lost-website/.env
+lost-website/.env.*
+!lost-website/.env.example
+
+# =============================================================================
+#  Build output and dependencies -- all refetchable
+# =============================================================================
+# CMake build tree, JUCE checkout, WebView2 SDK. ~1.9 GB.
+.dist/
+
+# Built VST3 bundle and the installer. ~95 MB, rebuilt by CMake.
+plugin/
+
+# JUCE copies its frontend bridge in here at configure time.
+ui/src/juce/
+
+ui/node_modules/
+ui/dist/
+lost-website/node_modules/
+lost-website/dist/
+
+# Third-party plug-in kept for reference only. Not ours to redistribute, and 30 MB.
+backend plugin/
+
+# =============================================================================
+#  Editor and OS noise
+# =============================================================================
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store
+
+# Local scratch
+*.log
+*.local
+
+# Archives whose contents are already extracted next to them.
+*.zip

@@ -1,0 +1,25 @@
+﻿LOST DUCK Anti Feedback -- third-party notices
+=============================================
+
+This product includes the following third-party software.
+
+
+-------------------------------------------------------------------------------
+JUCE
+-------------------------------------------------------------------------------
+This product is built with the JUCE framework (https://juce.com), used under
+licence from Raw Material Software Limited.
+
+
+-------------------------------------------------------------------------------
+Microsoft Edge WebView2
+-------------------------------------------------------------------------------
+The user interface is rendered with the Microsoft Edge WebView2 runtime,
+redistributed under the Microsoft Software License Terms for the WebView2 SDK.
+
+
+-------------------------------------------------------------------------------
+VST3
+-------------------------------------------------------------------------------
+VST is a trademark of Steinberg Media Technologies GmbH, registered in Europe
+and other countries.

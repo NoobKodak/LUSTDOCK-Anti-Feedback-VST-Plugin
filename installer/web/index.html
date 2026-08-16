@@ -1,0 +1,586 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LOST DUCK Anti Feedback - Installer</title>
+<style>
+/* Geometry copied from ui/src/styles.css. The installer wears the same face as the
+   plug-in, so the numbers have to match: change them there and here together. */
+:root {
+  --ui-scale: 1;
+  --design-w: 1430px;
+  --design-h: 804px;
+
+  --screen-x: 64px;
+  --screen-y: 52px;
+  --screen-w: 575px;
+  --screen-h: 527px;
+  --screen-r: 230px;
+
+  --power-x: 1090.2px;
+  --power-y: 206.8px;
+  --power-w: 200.5px;
+  --power-h: 204.7px;
+  --power-cover: 1.03;
+
+  --hud-font: "Consolas", "SF Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #ffffff;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.viewport { position: relative; width: 100vw; height: 100vh; overflow: hidden; }
+
+.stage {
+  position: absolute;
+  top: 0; left: 0;
+  width: var(--design-w);
+  height: var(--design-h);
+  transform: scale(var(--ui-scale));
+  transform-origin: 0 0;
+}
+
+.casing {
+  position: absolute; left: 0; top: 0;
+  width: var(--design-w); height: var(--design-h);
+  pointer-events: none;
+}
+
+/* ==========================================================================
+   Screen
+   ========================================================================== */
+.screen {
+  position: absolute;
+  left: var(--screen-x);
+  top: var(--screen-y);
+  width: var(--screen-w);
+  height: var(--screen-h);
+  border-radius: var(--screen-r);
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 40%, #0a141d, #03070a);
+  box-shadow:
+    inset 0 0 70px rgba(0, 0, 0, 0.95),
+    inset 0 2px 4px rgba(255, 255, 255, 0.06);
+  font-family: var(--hud-font);
+  color: #6f8ea3;
+}
+
+.screen-glass {
+  position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  background:
+    radial-gradient(120% 60% at 30% -12%, rgba(255,255,255,0.16), rgba(255,255,255,0) 60%),
+    radial-gradient(100% 100% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,0.55) 100%);
+}
+
+/* Each step fills the glass. Only one is visible at a time. */
+.step {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 96px 74px;
+  text-align: center;
+}
+
+.step.is-live { display: flex; animation: fade-in 180ms ease-out; }
+
+@keyframes fade-in { from { opacity: 0; } }
+
+.step-title {
+  font-size: 17px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  color: #4d6b80;
+  margin-bottom: 14px;
+}
+
+/* The agreement itself. Inset hard so the text block stays inside the circle rather
+   than running into the curve at the top and bottom of the glass. */
+.eula {
+  flex: 1;
+  width: 100%;
+  overflow-y: auto;
+  text-align: left;
+  font-size: 12.5px;
+  line-height: 1.62;
+  white-space: pre-wrap;
+  color: #7e9db1;
+  padding-right: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120,190,255,0.35) transparent;
+}
+
+.eula::-webkit-scrollbar { width: 7px; }
+.eula::-webkit-scrollbar-thumb {
+  background: rgba(120, 190, 255, 0.32);
+  border-radius: 99px;
+}
+
+.hint {
+  margin-top: 14px;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  color: #46627a;
+  min-height: 16px;
+}
+
+.hint.is-armed { color: #d98a3a; }
+.hint.is-bad { color: #ff6b6b; }
+
+/* Progress + done */
+.big {
+  font-size: 21px;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: #cfe2ee;
+}
+
+.sub {
+  margin-top: 16px;
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  color: #6f8ea3;
+  max-width: 400px;
+  line-height: 1.7;
+}
+
+.bar {
+  margin-top: 26px;
+  width: 300px;
+  height: 4px;
+  border-radius: 99px;
+  background: rgba(120, 190, 255, 0.14);
+  overflow: hidden;
+}
+
+.bar span {
+  display: block;
+  height: 100%;
+  width: 40%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, transparent, #3df2a0, transparent);
+  animation: sweep 1.1s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(350%); }
+}
+
+.tick { color: #3df2a0; font-size: 34px; margin-bottom: 10px; }
+.cross { color: #ff6b6b; font-size: 34px; margin-bottom: 10px; }
+
+.path {
+  margin-top: 18px;
+  font-size: 11.5px;
+  color: #46627a;
+  word-break: break-all;
+  max-width: 400px;
+  line-height: 1.6;
+}
+
+.close-btn {
+  margin-top: 26px;
+  font-family: inherit;
+  font-size: 13px;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+  color: #7e9db1;
+  background: rgba(120, 190, 255, 0.08);
+  border: 1px solid rgba(120, 190, 255, 0.3);
+  border-radius: 999px;
+  padding: 8px 22px;
+  cursor: pointer;
+}
+
+.close-btn:hover { background: rgba(120, 190, 255, 0.18); color: #cfe2ee; }
+
+/* Component choices. Inset hard so the block stays clear of the glass curve. */
+.opts { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 11px; }
+
+.opt { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; }
+.opt input { width: 17px; height: 17px; margin-top: 2px; accent-color: #3df2a0; flex: none; }
+.opt b { color: #cfe2ee; font-weight: 500; font-size: 14px; display: block; }
+.opt em { font-style: normal; color: #46627a; font-size: 11.5px; display: block; line-height: 1.5; }
+
+/* The VST3 path. Some hosts scan a custom folder, so this has to be changeable --
+   hard-coding it would make the installer useless to a chunk of users. */
+.folder { display: flex; gap: 7px; margin: -4px 0 4px 29px; }
+
+.folder input {
+  flex: 1; min-width: 0;
+  font-family: var(--hud-font); font-size: 11px;
+  color: #7e9db1; background: rgba(120, 190, 255, 0.06);
+  border: 1px solid rgba(120, 190, 255, 0.24); border-radius: 7px;
+  padding: 7px 9px;
+}
+
+.folder input:focus { outline: none; border-color: #3df2a0; }
+
+.folder button {
+  font-family: var(--hud-font); font-size: 10px; letter-spacing: 0.14em;
+  color: #7e9db1; background: transparent;
+  border: 1px solid rgba(120, 190, 255, 0.3); border-radius: 7px;
+  padding: 0 11px; cursor: pointer;
+}
+
+.folder button:hover { background: rgba(120, 190, 255, 0.14); color: #cfe2ee; }
+
+/* ==========================================================================
+   The orange button -- same placement maths as the plug-in
+   ========================================================================== */
+.power {
+  position: absolute;
+  left: var(--power-x);
+  top: var(--power-y);
+  width: var(--power-w);
+  height: var(--power-h);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  transform: scale(var(--power-cover));
+  transform-origin: center center;
+  transition: transform 90ms ease-out, filter 160ms ease-out;
+}
+
+.power img { width: 100%; height: 100%; display: block; pointer-events: none; }
+.power:active { transform: scale(calc(var(--power-cover) * 0.965)); }
+
+/* Unlit until the agreement has been read, so the button itself is the consent. */
+.power.is-locked {
+  cursor: default;
+  transform: scale(calc(var(--power-cover) * 0.985));
+  filter: grayscale(0.82) brightness(0.9);
+}
+
+.power:focus-visible {
+  outline: none;
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.9), 0 0 0 6px rgba(0,0,0,0.35);
+}
+
+/* Caption under the button, following the casing's own lettering style. */
+.power-caption {
+  position: absolute;
+  left: calc(var(--power-x) - 40px);
+  top: calc(var(--power-y) + var(--power-h) + 6px);
+  width: calc(var(--power-w) + 80px);
+  text-align: center;
+  font-family: var(--hud-font);
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  color: #8b8b8b;
+  pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="viewport">
+  <div class="stage" id="stage">
+    <img class="casing" src="newcasing.svg" alt="">
+
+    <div class="screen">
+      <!-- 1. agreement -->
+      <section class="step is-live" id="step-eula">
+        <div class="step-title">END USER AGREEMENT</div>
+        <div class="eula" id="eula-text">Loading...</div>
+        <div class="hint" id="hint">SCROLL TO THE END TO CONTINUE</div>
+      </section>
+
+      <!-- 1b. what to install -->
+      <section class="step" id="step-options">
+        <div class="step-title">WHAT TO INSTALL</div>
+
+        <div class="opts">
+          <label class="opt">
+            <input type="checkbox" id="opt-vst3" checked>
+            <span>
+              <b>VST3 plug-in</b>
+              <em>Every major DAW &mdash; FL Studio, Ableton, Cubase, Reaper, Studio One, Bitwig</em>
+            </span>
+          </label>
+
+          <div class="folder">
+            <input type="text" id="vst3-folder" spellcheck="false">
+            <button type="button" id="browse">CHANGE</button>
+          </div>
+
+          <label class="opt">
+            <input type="checkbox" id="opt-standalone" checked>
+            <span>
+              <b>Standalone app</b>
+              <em>Runs on its own, no DAW needed</em>
+            </span>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" id="opt-shortcuts" checked>
+            <span><b>Start menu shortcuts</b></span>
+          </label>
+
+          <label class="opt">
+            <input type="checkbox" id="opt-desktop">
+            <span><b>Desktop shortcut</b></span>
+          </label>
+        </div>
+
+        <div class="hint is-armed" id="hint-options">PRESS THE ORANGE BUTTON TO INSTALL</div>
+      </section>
+
+      <!-- 5. uninstall -->
+      <section class="step" id="step-uninstall">
+        <div class="big">REMOVE</div>
+        <div class="sub">
+          This removes the plug-in, the standalone app and the shortcuts.<br>
+          Your activation key is <b>kept</b>, so reinstalling will not ask for it again.
+        </div>
+        <div class="hint is-armed" style="margin-top:22px">PRESS THE ORANGE BUTTON TO UNINSTALL</div>
+      </section>
+
+      <!-- 6. removed -->
+      <section class="step" id="step-removed">
+        <div class="tick">&#10003;</div>
+        <div class="big">REMOVED</div>
+        <div class="sub">LOST DUCK Anti Feedback is no longer installed.</div>
+        <button type="button" class="close-btn" id="removed-close">CLOSE</button>
+      </section>
+
+      <!-- 2. installing -->
+      <section class="step" id="step-busy">
+        <div class="big">INSTALLING</div>
+        <div class="bar"><span></span></div>
+        <div class="sub">Writing the plug-in to your VST3 folder.</div>
+      </section>
+
+      <!-- 3. done -->
+      <section class="step" id="step-done">
+        <div class="tick">&#10003;</div>
+        <div class="big">INSTALLED</div>
+        <div class="sub">Restart your DAW and rescan plug-ins.<br>Look for <b>LOST DUCK Anti Feedback</b> by LOST.</div>
+        <div class="path" id="done-path"></div>
+        <button type="button" class="close-btn" id="done-close">CLOSE</button>
+      </section>
+
+      <!-- 4. failed -->
+      <section class="step" id="step-fail">
+        <div class="cross">&#10007;</div>
+        <div class="big">NOT INSTALLED</div>
+        <div class="sub" id="fail-why"></div>
+        <button type="button" class="close-btn" id="fail-close">CLOSE</button>
+      </section>
+
+      <div class="screen-glass"></div>
+    </div>
+
+    <button type="button" class="power is-locked" id="power" title="Accept the agreement and install">
+      <img src="button.svg" alt="">
+    </button>
+    <div class="power-caption" id="power-caption">ACCEPT &amp; INSTALL</div>
+  </div>
+</div>
+
+<!-- Classic script, deliberately not a module.
+     Layout must not depend on the bridge loading: if the module fails, the panel should
+     still be the right size and the screen should say what went wrong rather than sit on
+     "Loading..." forever. -->
+<script>
+const stage = document.getElementById("stage");
+
+function fit() {
+  const scale = Math.min(window.innerWidth / 1430, window.innerHeight / 804);
+  stage.style.setProperty("--ui-scale", String(scale));
+  stage.style.left = ((window.innerWidth - 1430 * scale) / 2) + "px";
+  stage.style.top = ((window.innerHeight - 804 * scale) / 2) + "px";
+}
+
+window.addEventListener("resize", fit);
+fit();
+
+function bootFailure(what) {
+  const box = document.getElementById("eula-text");
+  if (!box || box.dataset.loaded === "1") return;
+
+  box.dataset.failed = "1";
+  box.textContent =
+    "The installer could not start its interface.\n\n" + what +
+    "\n\nThis is a fault in the installer itself, not your computer. " +
+    "Please report it along with the message above.";
+}
+
+window.addEventListener("error", (e) => {
+  bootFailure((e.message || "Script error") + (e.filename ? "\n" + e.filename : ""));
+});
+
+window.addEventListener("unhandledrejection", (e) => {
+  bootFailure("Unhandled promise rejection: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+});
+
+// If the bridge never answers, say so instead of showing "Loading..." indefinitely.
+window.setTimeout(() => {
+  const box = document.getElementById("eula-text");
+  if (box && box.dataset.loaded !== "1" && box.dataset.failed !== "1") {
+    bootFailure("The agreement did not load within 8 seconds. The connection between the "
+                + "installer window and the application did not come up.");
+  }
+}, 8000);
+</script>
+
+<script type="module">
+import * as Juce from "./juce/index.js";
+
+const install = Juce.getNativeFunction("install");
+const uninstall = Juce.getNativeFunction("uninstall");
+const quit = Juce.getNativeFunction("quit");
+const readEula = Juce.getNativeFunction("eula");
+const readMode = Juce.getNativeFunction("mode");
+const readDefaults = Juce.getNativeFunction("defaults");
+const browse = Juce.getNativeFunction("browse");
+
+const power = document.getElementById("power");
+const caption = document.getElementById("power-caption");
+const hint = document.getElementById("hint");
+const eula = document.getElementById("eula-text");
+
+let armed = false;
+let installing = false;
+let mode = "install";
+let stage = "eula";
+
+function show(id) {
+  for (const s of document.querySelectorAll(".step")) s.classList.remove("is-live");
+  document.getElementById(id).classList.add("is-live");
+}
+
+function arm(label) {
+  armed = true;
+  power.classList.remove("is-locked");
+  hint.textContent = label || "CONTINUE";
+  hint.className = "hint is-armed";
+}
+
+/* The agreement has to be read to the bottom before the button lights. A short text that
+   fits without scrolling arms immediately -- there is nothing left to read. */
+eula.addEventListener("scroll", () => {
+  if (eula.scrollTop + eula.clientHeight >= eula.scrollHeight - 24) {
+    arm("PRESS THE ORANGE BUTTON TO ACCEPT");
+  }
+});
+
+/* Each of these stands alone. Chaining them meant one slow or failed call left the
+   screen on "Loading..." with nothing to explain why. */
+readEula().then((text) => {
+  eula.dataset.loaded = "1";
+  eula.textContent = text;
+  if (eula.scrollHeight <= eula.clientHeight + 4) arm("PRESS THE ORANGE BUTTON TO ACCEPT");
+}).catch((e) => bootFailure("Could not read the agreement: " + e));
+
+readDefaults().then((d) => {
+  document.getElementById("vst3-folder").value = (d && d.vst3Folder) || "";
+}).catch(() => {});
+
+readMode().then((m) => {
+  mode = m;
+
+  if (mode !== "uninstall") return;
+
+  stage = "uninstall";
+  caption.textContent = "UNINSTALL";
+  arm();
+  show("step-uninstall");
+}).catch(() => {});
+
+document.getElementById("browse").addEventListener("click", () => {
+  const box = document.getElementById("vst3-folder");
+
+  browse(box.value).then((picked) => {
+    if (picked) box.value = picked;
+  });
+});
+
+function beginInstall() {
+  installing = true;
+  caption.textContent = "INSTALLING";
+  show("step-busy");
+
+  install({
+    vst3: document.getElementById("opt-vst3").checked,
+    standalone: document.getElementById("opt-standalone").checked,
+    shortcuts: document.getElementById("opt-shortcuts").checked,
+    desktop: document.getElementById("opt-desktop").checked,
+    vst3Folder: document.getElementById("vst3-folder").value.trim(),
+  }).then((result) => {
+    installing = false;
+
+    if (result && result.ok) {
+      document.getElementById("done-path").textContent = result.installed || result.where || "";
+      caption.textContent = "DONE";
+      show("step-done");
+    } else {
+      document.getElementById("fail-why").textContent =
+        (result && result.why) || "The installer could not write to the VST3 folder.";
+      caption.textContent = "FAILED";
+      show("step-fail");
+    }
+  });
+}
+
+power.addEventListener("click", () => {
+  if (!armed || installing) return;
+
+  /* Accept, then choose, then go. Three presses of the same physical button, which is
+     how the plug-in itself works -- there is only ever one control on this panel. */
+  if (stage === "uninstall") {
+    installing = true;
+    caption.textContent = "REMOVING";
+    show("step-busy");
+
+    uninstall().then(() => {
+      installing = false;
+      caption.textContent = "DONE";
+      show("step-removed");
+    });
+    return;
+  }
+
+  if (stage === "eula") {
+    stage = "options";
+    caption.textContent = "INSTALL";
+    show("step-options");
+    return;
+  }
+
+  if (stage === "options") {
+    const optionHint = document.getElementById("hint-options");
+
+    if (!document.getElementById("opt-vst3").checked
+        && !document.getElementById("opt-standalone").checked) {
+      optionHint.textContent = "CHOOSE AT LEAST ONE COMPONENT";
+      optionHint.className = "hint is-bad";
+      return;
+    }
+
+    stage = "installing";
+    beginInstall();
+  }
+});
+
+for (const id of ["done-close", "fail-close", "removed-close"]) {
+  document.getElementById(id).addEventListener("click", () => quit());
+}
+</script>
+</body>
+</html>

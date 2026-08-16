@@ -1,0 +1,42 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 24, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Visual Studio 17 2022",
+      "architecture": "x64",
+      "binaryDir": "${sourceDir}/.dist/build",
+      "cacheVariables": {
+        "CPM_SOURCE_CACHE": "${sourceDir}/.dist/cpm-cache",
+        "JUCE_WEBVIEW2_PACKAGE_LOCATION": "${sourceDir}/.dist/nuget"
+      },
+      "environment": {
+        "TEMP": "${sourceDir}/.dist/tmp",
+        "TMP": "${sourceDir}/.dist/tmp"
+      }
+    },
+    {
+      "name": "vs",
+      "inherits": "base",
+      "displayName": "Visual Studio 2022 (x64)",
+      "description": "Release/Debug build with the React UI compiled into BinaryData"
+    },
+    {
+      "name": "dev",
+      "inherits": "base",
+      "displayName": "Dev (Vite HMR)",
+      "description": "WebView points at http://localhost:5173 so the React app hot-reloads",
+      "binaryDir": "${sourceDir}/.dist/build-dev",
+      "cacheVariables": {
+        "LOSTDUCK_DEV_SERVER": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "vs", "configurePreset": "vs", "configuration": "Release" },
+    { "name": "vs-debug", "configurePreset": "vs", "configuration": "Debug" },
+    { "name": "dev", "configurePreset": "dev", "configuration": "Debug" }
+  ]
+}

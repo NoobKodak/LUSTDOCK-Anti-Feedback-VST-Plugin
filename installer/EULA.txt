@@ -1,0 +1,58 @@
+END USER LICENCE AGREEMENT
+
+LOST DUCK Anti Feedback Ai
+Copyright (c) 2026 LOST. Developed by noobkodak.
+
+Please read this agreement before installing. Pressing the orange button installs the
+software and confirms that you accept these terms. If you do not accept them, close this
+window and nothing will be written to your computer.
+
+
+1. LICENCE
+
+You are granted a non-exclusive, non-transferable licence to install and use LOST DUCK
+Anti Feedback on computers you own or control. One purchased activation key may be used
+on your own machines for your own work, including live performance and commercial
+recording. Audio you produce with this software is yours; no rights in it are claimed.
+
+
+2. ACTIVATION
+
+Unactivated, the software runs in demo mode and periodically silences its output. An
+activation key removes that restriction. Keys are issued per purchase. Please do not
+share, publish or resell your key: it cannot be revoked once it is out, and the honesty
+of the people who buy this is the only thing that keeps it affordable.
+
+
+3. WHAT YOU MAY NOT DO
+
+You may not resell, rent, sublicense or redistribute the software itself. You may not
+attempt to defeat, remove or work around the activation or demo restrictions, nor
+distribute tools or instructions for doing so.
+
+
+4. NO WARRANTY
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE. TO THE MAXIMUM EXTENT PERMITTED BY LAW, LOST SHALL NOT BE LIABLE FOR
+ANY CLAIM, DAMAGES OR OTHER LIABILITY ARISING FROM THE USE OF THE SOFTWARE.
+
+
+5. USE IN LIVE PERFORMANCE -- PLEASE READ
+
+This is a feedback suppressor. It reduces the risk of feedback; it does not eliminate it,
+and it cannot protect against every situation. It is not a limiter and it is not a
+hearing-protection device.
+
+Always set your gain structure sensibly, and always keep a hand on the fader. Do not rely
+on this software as the only thing standing between an audience and a sudden loud sound.
+
+
+6. GENERAL
+
+If any provision of this agreement is held unenforceable, the remainder stays in force.
+This agreement is the entire agreement between you and LOST regarding the software.
+
+
+Questions: contact LOST.
