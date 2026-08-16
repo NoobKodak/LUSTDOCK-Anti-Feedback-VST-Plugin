@@ -44,6 +44,14 @@ LostDuckAudioProcessorEditor::LostDuckAudioProcessorEditor (LostDuckAudioProcess
     getConstrainer()->setFixedAspectRatio (designRatio);
     setSize (designWidth / 2, designHeight / 2);
 
+    /*  Someone holding a key from before online activation gets moved across, quietly,
+        the first time they open the window.
+
+        Here and not in the processor's constructor: hosts build a processor purely to
+        scan the plug-in, so doing this there would fire an HTTP request during every
+        DAW's scan on every machine, whether or not the plug-in is ever opened.       */
+    processor.migrateOldLicenceIfNeeded();
+
     startTimerHz (30);
 }
 

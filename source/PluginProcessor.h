@@ -100,6 +100,36 @@ public:
 
     juce::String getMachineName() const { return Activation::machineName(); }
 
+    /*  Moves an old offline key onto the new scheme, quietly, once.
+
+        Twelve people bought a key under the previous system. Their plug-in still works
+        because isActivated() falls back to it, but they would sit on the old scheme
+        forever unless something claims a seat for them -- and the old scheme is the one
+        with the extractable secret.
+
+        Called when the editor opens rather than from the constructor, and that placement
+        is deliberate: hosts construct a processor to scan it, so activating there would
+        fire an HTTP request during every DAW's plug-in scan, on every machine, whether
+        or not anybody ever opens the plug-in.
+
+        Silent by design. It succeeds, or the customer keeps working exactly as before
+        and it tries again next time. Nothing is shown either way, because there is no
+        action for them to take.                                                       */
+    void migrateOldLicenceIfNeeded()
+    {
+        if (migrationTried.exchange (true))
+            return;
+
+        if (activation.isActivated() || ! licence.isActivated())
+            return;
+
+        activation.activateAsync (licence.getStoredKey(), [this] (Activation::Outcome outcome)
+        {
+            if (outcome.ok)
+                activated.store (true);
+        });
+    }
+
     void clearNotches() noexcept { engine.requestClear(); }
 
     juce::AudioProcessorValueTreeState apvts;
@@ -135,6 +165,10 @@ private:
     Licence licence;
     Activation activation;
     std::atomic<bool> activated { false };
+
+    /** One attempt per plug-in instance. A customer opening and closing the window ten
+        times should not send ten activations. */
+    std::atomic<bool> migrationTried { false };
     DemoGate demo;
 
     juce::AudioParameterBool* powerParam = nullptr;
