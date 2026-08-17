@@ -89,8 +89,21 @@ export function Header() {
   );
 }
 
-/** The banner that stops anyone mistaking this for a real shop. */
+/*  The banner that stops anyone mistaking this for a real shop.
+
+    Shown unless the deployment says otherwise, and that direction matters. It was a
+    hardcoded strip that had to be remembered and deleted on the day payments went live;
+    the failure mode of forgetting was a real shop still telling buyers their money was
+    not being taken, and the failure mode of deleting it early was a simulated shop
+    claiming to be real. Neither is a thing to leave to memory.
+
+    Now it is one variable, set in the same place and at the same moment as the live
+    PayPal client id -- which is the other half of going live, and the half that actually
+    moves money. Set them together, one build, and the label can never disagree with what
+    the checkout is really doing.                                                       */
 export function DemoStrip() {
+  if (import.meta.env.VITE_STORE_LIVE === "1") return null;
+
   return (
     <div className="bg-primary/12 py-2 text-center t-label text-primary">
       Demonstration store — payments are simulated, no money is taken
