@@ -30,6 +30,13 @@ function clean(input: string): string {
 export function ActivationPanel({ onClose, onActivated }: ActivationPanelProps) {
   const [chars, setChars] = useState<string[]>(() => Array(total).fill(""));
   const [status, setStatus] = useState<"idle" | "checking" | "bad" | "good">("idle");
+
+  /*  Whatever the server said. Held rather than derived, because "that key is on three
+      computers already" and "that key was never issued" call for completely different
+      actions and only the server knows which applies.                                */
+  const [message, setMessage] = useState("");
+  const [offline, setOffline] = useState(false);
+
   const inputs = useRef<Array<HTMLInputElement | null>>([]);
 
   const focusBox = (index: number) => {
@@ -52,14 +59,23 @@ export function ActivationPanel({ onClose, onActivated }: ActivationPanelProps) 
   const submit = useCallback(
     (key: string) => {
       setStatus("checking");
+      setMessage("");
+      setOffline(false);
 
-      activate(key).then((result: any) => {
+      activate(key).then((result) => {
         if (result?.ok) {
           setStatus("good");
+          setMessage(result.message ?? "");
           // Let the ACTIVATED message land before the panel disappears.
-          window.setTimeout(onActivated, 900);
+          window.setTimeout(onActivated, 1200);
         } else {
           setStatus("bad");
+          setMessage(result?.message ?? "That key could not be activated.");
+          setOffline(Boolean(result?.offline));
+
+          /*  The boxes are not cleared. A key refused because it is on three machines
+              is a correctly typed key, and wiping it would make the customer type
+              sixteen characters again to reach the same answer.                      */
           window.setTimeout(() => focusBox(0), 0);
         }
       });
@@ -83,13 +99,32 @@ export function ActivationPanel({ onClose, onActivated }: ActivationPanelProps) 
     setStatus("idle");
     focusBox(cursor);
 
+    /*  Empty boxes contribute nothing to the join, so a full sixteen characters is
+        already proof that none are blank. The guard that used to sit here also asked
+        `!assembled.includes("")`, which is true of every string in JavaScript -- so it
+        was always false and the key never submitted itself. Enter still worked, which
+        is why it went unnoticed.                                                      */
     const assembled = next.join("");
-    if (assembled.length === total && !assembled.includes("")) submit(assembled);
+    if (assembled.length === total) submit(assembled);
   };
 
   return (
     <div className="hud-activate" role="dialog" aria-label="Activation key">
       <div className="hud-activate-label">ENTER ACTIVATION KEY</div>
+
+      {/*  Said before they type, not after it fails.
+
+          Activating needs the internet exactly once. Finding that out from an error
+          message, on a stage, ten minutes before a set, is the worst possible moment --
+          so it is stated up front, together with the part that matters more: it never
+          needs the internet again afterwards.                                         */}
+      <div className="hud-activate-note">
+        <span className="hud-activate-note-dot" aria-hidden="true" />
+        <span>
+          <b>Needs the internet, once.</b> This computer is registered to your licence,
+          then works offline forever &mdash; including on stage.
+        </span>
+      </div>
 
       <div className={`hud-otp ${status === "bad" ? "is-bad" : ""}`}>
         {Array.from({ length: groups }, (_, g) => (
@@ -142,12 +177,22 @@ export function ActivationPanel({ onClose, onActivated }: ActivationPanelProps) 
         ))}
       </div>
 
-      <div className={`hud-activate-status is-${status}`}>
-        {status === "bad" && "THAT KEY IS NOT VALID"}
-        {status === "checking" && "CHECKING"}
+      <div className={`hud-activate-status is-${status}`} role="status" aria-live="polite">
+        {status === "checking" && "CONTACTING THE LICENCE SERVER"}
         {status === "good" && "ACTIVATED"}
+        {status === "bad" && (offline ? "NO CONNECTION" : "NOT ACTIVATED")}
         {status === "idle" && " "}
       </div>
+
+      {/*  The server's own sentence, verbatim.
+
+          The line above says whether it worked; this says why, and it is the only part
+          that implies an action -- release a seat on the shop, check the connection,
+          look at what was typed. Set in normal case on purpose: a paragraph in the
+          tracked-out capitals used everywhere else here is unreadable.                */}
+      {message !== "" && status === "bad" && (
+        <div className="hud-activate-reason">{message}</div>
+      )}
 
       <button type="button" className="hud-picker-close" onClick={onClose}>
         CLOSE

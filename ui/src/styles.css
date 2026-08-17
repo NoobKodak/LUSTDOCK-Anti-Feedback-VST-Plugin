@@ -348,6 +348,67 @@ body {
   }
 }
 
+/* The first-run notice.
+
+   Sits above the foot rather than under the title: the top of the screen is the title,
+   the badge and the notch list, and the middle is the scope, which is the one thing that
+   must stay legible. The band between the trace and the status row is the only empty
+   space on the glass, and it is also directly above where the eye already goes. */
+.hud-firstrun {
+  position: absolute;
+  bottom: 100px;
+  /* Shrink-wrapped rather than stretched across the glass: the box is only as wide as
+     the sentence needs, so the border sits close to the words instead of leaving a
+     hand's width of empty pill on either side.
+
+     Centred with auto margins, not `left: 50%` and a translate. With only a left offset
+     the space a shrink-to-fit box may use runs from that offset to the right edge, so
+     asking for 340 got 287 and the sentence broke over three lines. Between two zero
+     offsets the whole screen is available and the max-width is what actually decides. */
+  left: 0;
+  right: 0;
+  width: fit-content;
+  max-width: 340px;
+  margin: 0 auto;
+  pointer-events: auto;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  font-family: inherit;
+  text-align: center;
+  background: rgba(255, 60, 60, 0.07);
+  border: 1px solid rgba(255, 90, 90, 0.3);
+  border-radius: 12px;
+  transition: background 140ms ease-out, border-color 140ms ease-out;
+}
+
+.hud-firstrun:hover {
+  background: rgba(255, 60, 60, 0.16);
+  border-color: rgba(255, 90, 90, 0.55);
+}
+
+.hud-firstrun-head {
+  font-size: 13px;
+  letter-spacing: 0.24em;
+  text-indent: 0.24em;
+  color: #ff8f8f;
+}
+
+/* Normal case, because it is a sentence. The capitals above are two words. */
+.hud-firstrun-sub {
+  /* Column flex centres its children by shrinking them, which wrapped this over three
+     ragged lines inside a box that had room for two. Stretching it back out lets the
+     sentence use the width the border already occupies. */
+  align-self: stretch;
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  color: #8aa4b6;
+}
+
 .hud-activate {
   position: absolute;
   inset: 0;
@@ -366,6 +427,41 @@ body {
   letter-spacing: 0.34em;
   text-indent: 0.34em;
   color: #4d6b80;
+}
+
+/* The one-off internet requirement, stated before anybody types.
+
+   Normal case and a small size on purpose. Everything else on this screen is tracked-out
+   capitals, which suit two or three words and are miserable for two sentences; and the
+   note must not compete with the boxes it sits above. 300px keeps it inside the circle
+   with room to spare and breaks it over two lines, which is the shape that reads. */
+.hud-activate-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 300px;
+  margin-top: -4px;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  color: #7e9cb0;
+  text-align: left;
+}
+
+.hud-activate-note b {
+  color: #a9c8dc;
+  font-weight: 600;
+}
+
+/* Sits on the first line of text, not the middle of the block. */
+.hud-activate-note-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: #3df2a0;
+  box-shadow: 0 0 8px rgba(61, 242, 160, 0.7);
 }
 
 /* Two rows of two groups, not one row of four.
@@ -428,6 +524,19 @@ body {
 .hud-activate-status.is-good { color: #3df2a0; }
 .hud-activate-status.is-checking { color: #6f8ea3; }
 .hud-activate-status.is-idle { color: transparent; }
+
+/* Whatever the server said, in normal case for the same reason as the note above.
+   Pulled up against the status line because the two are one message: NOT ACTIVATED,
+   then the sentence explaining what to do about it. */
+.hud-activate-reason {
+  max-width: 320px;
+  margin-top: -8px;
+  font-size: 11px;
+  line-height: 1.5;
+  letter-spacing: 0.01em;
+  text-align: center;
+  color: #d09a9a;
+}
 
 /* The notch limit picker: takes over the screen rather than dropping a native combo
    box on top of the artwork, which never looked like part of the device. */

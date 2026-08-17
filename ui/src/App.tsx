@@ -172,6 +172,32 @@ export default function App() {
               </button>
             )}
 
+            {/*  Says what the DEMO badge cannot.
+
+                A red pill in the corner tells somebody they are not licensed; it does
+                not tell them that activating needs a connection. That matters because of
+                where this plug-in gets used: a laptop carried to a venue, often with no
+                wifi worth the name, sometimes minutes before a set. Finding out then is
+                the worst moment to find out, so it is said on the first screen, before
+                anybody has typed anything -- along with the reassurance that it is asked
+                for exactly once.
+
+                The whole strip opens the key entry, so the sentence explaining what is
+                needed is also the way to do it.                                        */}
+            {!detector.activated && !activateOpen && (
+              <button
+                type="button"
+                className="hud-firstrun"
+                onClick={() => setActivateOpen(true)}
+              >
+                <span className="hud-firstrun-head">ONLINE ACTIVATION REQUIRED</span>
+                <span className="hud-firstrun-sub">
+                  Connect to the internet once to activate this computer. It runs offline
+                  after that.
+                </span>
+              </button>
+            )}
+
             {activateOpen && (
               <ActivationPanel
                 onClose={() => setActivateOpen(false)}

@@ -66,11 +66,30 @@ function nativeFunction<T>(name: string, fallback: () => T) {
 export const getDetectorState = nativeFunction<DetectorState>("getDetectorState", () => emptyDetector);
 export const clearNotches = nativeFunction<DetectorState>("clearNotches", () => emptyDetector);
 
-/** Validates and stores a key. `ok` is false when the key is not valid, and nothing
- *  changes. Outside the plug-in it always fails, so the demo UI can be exercised. */
-export const activate = nativeFunction<{ ok: boolean; activated: boolean }>(
+export interface ActivationResult {
+  ok: boolean;
+  activated: boolean;
+  /*  The server's own words, shown to the customer verbatim.
+
+      It knows things this side cannot: that a key is on three machines already, that it
+      was never sold, that it has been revoked. Each needs a different action, and
+      flattening them into "invalid key" would throw away the only part that tells
+      somebody what to do next.                                                        */
+  message?: string;
+  /** True when the request never reached the server, which is a different problem from
+   *  a key being refused -- one is "check your wifi", the other "check what you typed". */
+  offline?: boolean;
+}
+
+/** Activates a key against the licence server and stores the token it returns. Outside
+ *  the plug-in it always fails, so the demo UI can be exercised in a browser. */
+export const activate = nativeFunction<ActivationResult>(
   "activate",
-  () => ({ ok: false, activated: false })
+  () => ({
+    ok: false,
+    activated: false,
+    message: "Activation only works inside the plug-in.",
+  })
 );
 
 export function onBackendEvent(eventId: string, callback: (payload: any) => void) {
