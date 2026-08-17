@@ -32,6 +32,17 @@ lost-website/.env.*
 # Built VST3 bundle and the installer. ~95 MB, rebuilt by CMake.
 plugin/
 
+# The installer again, where the site serves it from.
+#
+# It was tracked here until the first push, and it is the reason .git had reached 124 MB:
+# git keeps every version forever, so each rebuild left another 36 MB in history that
+# nothing could ever reclaim. Four copies were already in there.
+#
+# The build writes it back into this folder every time, and for a deployed site it belongs
+# in Supabase Storage rather than in the repo -- the releases row already carries the size
+# and the SHA-256 that identify which build is current.
+lost-website/public/downloads/
+
 # JUCE copies its frontend bridge in here at configure time.
 ui/src/juce/
 
