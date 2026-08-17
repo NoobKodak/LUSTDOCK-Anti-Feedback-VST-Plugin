@@ -55,6 +55,19 @@ lost-website/dist/
 backend plugin/
 
 # =============================================================================
+#  The website lives in its own repository
+# =============================================================================
+# github.com/NoobKodak/LOSTDUCK-Website -- which is also what Vercel builds.
+#
+# It used to be committed here as well. Keeping both meant a subtree split and two pushes
+# after every change, and the first time one was forgotten the two copies would disagree
+# with nothing to say which was right. The folder stays on disk because that is where it
+# is worked on; it is simply tracked by the other repository, not this one.
+#
+# Clone it alongside if this working copy is ever set up fresh.
+lost-website/
+
+# =============================================================================
 #  Editor and OS noise
 # =============================================================================
 .vscode/*
