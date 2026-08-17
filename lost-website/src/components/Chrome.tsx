@@ -89,24 +89,15 @@ export function Header() {
   );
 }
 
-/*  The banner that stops anyone mistaking this for a real shop.
+/*  The demonstration banner used to live here.
 
-    Shown unless the deployment says otherwise, and that direction matters. It was a
-    hardcoded strip that had to be remembered and deleted on the day payments went live;
-    the failure mode of forgetting was a real shop still telling buyers their money was
-    not being taken, and the failure mode of deleting it early was a simulated shop
-    claiming to be real. Neither is a thing to leave to memory.
+    It is gone because it became untrue on 17 August 2026: the live PayPal client id is in
+    the shipped bundle and the live secret authenticates against api-m.paypal.com, so this
+    shop takes real money and saying otherwise would be the misleading statement, not the
+    honest one.
 
-    Now it is one variable, set in the same place and at the same moment as the live
-    PayPal client id -- which is the other half of going live, and the half that actually
-    moves money. Set them together, one build, and the label can never disagree with what
-    the checkout is really doing.                                                       */
-export function DemoStrip() {
-  if (import.meta.env.VITE_STORE_LIVE === "1") return null;
-
-  return (
-    <div className="bg-primary/12 py-2 text-center t-label text-primary">
-      Demonstration store — payments are simulated, no money is taken
-    </div>
-  );
-}
+    It briefly hung off VITE_STORE_LIVE so the label could not disagree with the checkout
+    during the switch-over. That guard is not kept: a flag whose only correct value is the
+    one it now permanently has is a thing for somebody to set wrong later, and the state it
+    guarded against -- a real client id behind a simulated-payments notice -- can no longer
+    arise without deliberately putting a sandbox id back.                                */

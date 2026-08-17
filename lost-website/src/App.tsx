@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Route, Routes, useLocation } from "react-router-dom";
 
-import { DemoStrip, Header } from "@/components/Chrome";
+import { Header } from "@/components/Chrome";
 import { Admin } from "@/pages/Admin";
 import { Checkout } from "@/pages/Checkout";
 import { Landing } from "@/pages/Landing";
@@ -29,14 +29,13 @@ export default function App() {
   /*  The back office is not a page of the shop.
 
       It has its own dark palette and its own navigation, and sitting it under the store's
-      yellow demo strip and centred logo made it look like a page that had lost its
-      styling. Hiding the shop chrome here also lets the admin own the full height, which
-      is what the sidebar needs to run down.                                            */
+      centred logo made it look like a page that had lost its styling. Hiding the shop
+      chrome here also lets the admin own the full height, which is what the sidebar needs
+      to run down.                                                                       */
   const isBackOffice = location.pathname.startsWith("/admin");
 
   return (
     <SoundProvider>
-      {!isBackOffice && <DemoStrip />}
       {!isBackOffice && <Header />}
 
       {loadError && (
