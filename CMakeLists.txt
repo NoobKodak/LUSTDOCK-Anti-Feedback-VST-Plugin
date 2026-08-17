@@ -351,6 +351,10 @@ if(LOSTDUCK_BUILD_HARNESS)
     target_compile_definitions(LostDuckActivationProbe PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
+        # --async pumps the message loop by hand to collect the callback the plug-in
+        # would receive in its editor. Console-only, so the usual reason to forbid
+        # modal loops -- reentering a host's event loop -- does not apply.
+        JUCE_MODAL_LOOPS_PERMITTED=1
         JUCE_STANDALONE_APPLICATION=1)
 
     target_link_libraries(LostDuckActivationProbe PRIVATE

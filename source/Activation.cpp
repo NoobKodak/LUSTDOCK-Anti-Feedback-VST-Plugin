@@ -2,6 +2,14 @@
 
 #include <ActivationPublicKey.h>
 
+#if JUCE_WINDOWS
+ #include <windows.h>
+ #include <winhttp.h>
+ /*  Linked here rather than from CMake because this file is the only thing that needs it,
+     and it is compiled into three different targets. MSVC-only, which this product is. */
+ #pragma comment (lib, "winhttp.lib")
+#endif
+
 namespace
 {
 /*  Where the request goes. The endpoint is not a secret -- it is in the binary either
@@ -14,10 +22,250 @@ const char* const activationUrl =
     while this elapses.                                                               */
 constexpr int connectTimeoutMs = 12000;
 
+/*  How many times to try opening the socket before calling it a dead connection.
+
+    Not superstition. The first HTTP call a Windows process makes goes through
+    InternetOpen with INTERNET_OPEN_TYPE_PRECONFIG, which runs proxy auto-detection --
+    and that first call can fail outright on a machine whose network stack is otherwise
+    perfectly healthy. It reproduced exactly that way here: the same key, on the same
+    machine, minutes apart, failed inside the plug-in without a single request reaching
+    the server, and succeeded from a console process that had already opened a session.
+
+    It is also simply the right behaviour for where this plug-in lives. Venue wifi drops
+    a first packet routinely, and a musician should not have to work out that the fix is
+    to press the button again.                                                        */
+constexpr int connectAttempts = 3;
+
+/*  Long enough for a half-open connection to finish collapsing, short enough that three
+    attempts still feel like one action rather than a hang.                           */
+constexpr int retryPauseMs = 800;
+
 juce::String sha256Hex (const juce::String& text)
 {
     const juce::SHA256 hash (text.toRawUTF8(), (size_t) text.getNumBytesAsUTF8());
     return hash.toHexString();
+}
+
+//==============================================================================
+/** What came back, and if nothing did, why not. */
+struct HttpReply
+{
+    /** True when the server answered at all, whatever it said. */
+    bool reached = false;
+    int status = 0;
+    juce::String body;
+    /** Short technical note for the customer-facing message. Not a sentence -- it gets
+        embedded in one -- but concrete enough to be worth reading out over the phone. */
+    juce::String failure;
+};
+
+#if JUCE_WINDOWS
+/*  A second, independent way to make the same request.
+
+    juce::URL is the first choice and handles this everywhere. But on Windows it goes
+    through WinINet, and the session handle it uses is a *function-local static*: opened
+    once for the life of the process, never reopened. If that one call fails -- and it can,
+    because INTERNET_OPEN_TYPE_PRECONFIG runs proxy auto-detection -- then every request
+    from that process fails for as long as the process lives, and retrying cannot help,
+    because the retry reuses the same dead handle. Restarting the DAW is the only cure,
+    which is not something to ask of somebody about to go on stage.
+
+    That fits what was actually observed: activation failed inside the plug-in without a
+    single request reaching the server, while the identical code in a console process
+    succeeded moments later on the same machine and the same connection.
+
+    WinHTTP is a different API with its own session, opened per request. It also resolves
+    proxies more sanely than WinINet -- WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY covers WPAD and
+    the user's own settings -- which is worth having in the venues this plug-in runs in.
+
+    Used only as a fallback. The common path stays the one that is exercised on every
+    platform, so this cannot quietly become the only tested route.                     */
+HttpReply postJsonWithWinHttp (const juce::String& urlText, const juce::String& payload)
+{
+    HttpReply reply;
+
+    /*  Closes on every exit path, including the early returns below. Each handle has to
+        outlive the ones opened from it, which the declaration order gives us in reverse. */
+    struct Handle
+    {
+        HINTERNET h = nullptr;
+        ~Handle() { if (h != nullptr) WinHttpCloseHandle (h); }
+    };
+
+    URL_COMPONENTS parts {};
+    parts.dwStructSize = sizeof (parts);
+    parts.dwHostNameLength = (DWORD) -1;
+    parts.dwUrlPathLength = (DWORD) -1;
+    parts.dwExtraInfoLength = (DWORD) -1;
+
+    if (! WinHttpCrackUrl (urlText.toWideCharPointer(), 0, 0, &parts))
+    {
+        reply.failure = "url " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    // Kept alive as named locals: toWideCharPointer hands back a pointer into the
+    // String's own storage, so the String has to outlive the call that uses it.
+    const juce::String host (parts.lpszHostName, parts.dwHostNameLength);
+    juce::String path (parts.lpszUrlPath, parts.dwUrlPathLength);
+
+    if (parts.dwExtraInfoLength > 0)
+        path += juce::String (parts.lpszExtraInfo, parts.dwExtraInfoLength);
+
+    Handle session, connection, request;
+
+    session.h = WinHttpOpen (L"LOST Duck", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+                             WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+
+    // Automatic proxy detection needs Windows 8.1. Older machines get the plain default.
+    if (session.h == nullptr)
+        session.h = WinHttpOpen (L"LOST Duck", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY,
+                                 WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+
+    if (session.h == nullptr)
+    {
+        reply.failure = "open " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    WinHttpSetTimeouts (session.h, connectTimeoutMs, connectTimeoutMs,
+                        connectTimeoutMs, connectTimeoutMs);
+
+    connection.h = WinHttpConnect (session.h, host.toWideCharPointer(), parts.nPort, 0);
+
+    if (connection.h == nullptr)
+    {
+        reply.failure = "connect " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    request.h = WinHttpOpenRequest (connection.h, L"POST", path.toWideCharPointer(),
+                                    nullptr, WINHTTP_NO_REFERER,
+                                    WINHTTP_DEFAULT_ACCEPT_TYPES,
+                                    parts.nScheme == INTERNET_SCHEME_HTTPS
+                                        ? WINHTTP_FLAG_SECURE : 0u);
+
+    if (request.h == nullptr)
+    {
+        reply.failure = "request " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    const auto* bytes = payload.toRawUTF8();
+    const auto length = (DWORD) payload.getNumBytesAsUTF8();
+
+    if (! WinHttpSendRequest (request.h, L"Content-Type: application/json\r\n", (DWORD) -1,
+                              (LPVOID) bytes, length, length, 0))
+    {
+        reply.failure = "send " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    if (! WinHttpReceiveResponse (request.h, nullptr))
+    {
+        reply.failure = "receive " + juce::String ((int) GetLastError());
+        return reply;
+    }
+
+    DWORD code = 0, codeSize = sizeof (code);
+
+    if (WinHttpQueryHeaders (request.h, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+                             WINHTTP_HEADER_NAME_BY_INDEX, &code, &codeSize, WINHTTP_NO_HEADER_INDEX))
+    {
+        reply.status = (int) code;
+    }
+
+    juce::MemoryOutputStream received;
+
+    for (;;)
+    {
+        DWORD available = 0;
+
+        if (! WinHttpQueryDataAvailable (request.h, &available) || available == 0)
+            break;
+
+        juce::HeapBlock<char> buffer (available);
+        DWORD read = 0;
+
+        if (! WinHttpReadData (request.h, buffer.getData(), available, &read) || read == 0)
+            break;
+
+        received.write (buffer.getData(), (size_t) read);
+    }
+
+    reply.reached = true;
+    reply.body = received.toString();
+    return reply;
+}
+#endif
+
+/*  Posts the JSON and says what happened.
+
+    juce::URL first, retried, because that is the path every platform shares. Only if it
+    never opens a socket does the Windows fallback above get a turn.                    */
+HttpReply postJson (const juce::String& urlText, const juce::String& payload)
+{
+    HttpReply reply;
+
+   #if JUCE_WINDOWS
+    /*  Support switch, and the only way to exercise the fallback on a machine where the
+        usual path works. It selects an HTTP stack and nothing else -- it cannot activate
+        anything, skip a check, or change what the server is asked.                     */
+    if (juce::SystemStats::getEnvironmentVariable ("LOSTDUCK_FORCE_WINHTTP", {}).isNotEmpty())
+    {
+        auto forced = postJsonWithWinHttp (urlText, payload);
+
+        if (forced.reached)
+            return forced;
+
+        forced.failure = "winhttp " + forced.failure;
+        return forced;
+    }
+   #endif
+
+    const auto request = juce::URL (urlText).withPOSTData (payload);
+
+    for (int attempt = 1; attempt <= connectAttempts; ++attempt)
+    {
+        reply.status = 0;
+
+        auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inPostData)
+            .withExtraHeaders ("Content-Type: application/json")
+            .withConnectionTimeoutMs (connectTimeoutMs)
+            .withStatusCode (&reply.status);
+
+        if (auto stream = request.createInputStream (options))
+        {
+            reply.reached = true;
+            reply.body = stream->readEntireStreamAsString();
+            return reply;
+        }
+
+        /*  JUCE fills the status code in even when it hands back nothing, so a non-zero
+            code means the server did answer and the failure came after that. Asking a
+            working server the same question again would not help.                     */
+        if (reply.status != 0)
+        {
+            reply.failure = "http " + juce::String (reply.status);
+            return reply;
+        }
+
+        if (attempt < connectAttempts)
+            juce::Thread::sleep (retryPauseMs);
+    }
+
+   #if JUCE_WINDOWS
+    auto fallback = postJsonWithWinHttp (urlText, payload);
+
+    if (fallback.reached)
+        return fallback;
+
+    reply.failure = "wininet dead, winhttp " + fallback.failure;
+   #else
+    reply.failure = "no connection";
+   #endif
+
+    return reply;
 }
 }
 
@@ -188,33 +436,31 @@ Activation::Outcome Activation::activateBlocking (const juce::String& key)
     body->setProperty ("machine", machineId());
     body->setProperty ("machine_name", machineName());
 
-    const auto request = juce::URL (activationUrl)
-        .withPOSTData (juce::JSON::toString (juce::var { body.get() }));
+    const auto sent = postJson (activationUrl, juce::JSON::toString (juce::var { body.get() }));
 
-    int status = 0;
-
-    auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inPostData)
-        .withExtraHeaders ("Content-Type: application/json")
-        .withConnectionTimeoutMs (connectTimeoutMs)
-        .withStatusCode (&status);
-
-    auto stream = request.createInputStream (options);
-
-    if (stream == nullptr)
+    if (! sent.reached)
     {
-        /*  No connection at all. Told apart from a rejected key on purpose: the customer
-            needs to know this is their internet and not their purchase.              */
+        /*  Told apart from a rejected key on purpose: the customer needs to know this is
+            their internet and not their purchase.
+
+            The technical note is appended rather than hidden. It means nothing to a
+            singer, but it is the difference between a support email that says "it says no
+            connection" and one that can actually be diagnosed, and it costs one short
+            parenthesis on a screen almost nobody will ever see.                        */
         return { false,
                  "Could not reach the activation server. Check your internet connection "
-                 "and try again -- the plug-in keeps working in demo mode meanwhile.",
+                 "and try again -- the plug-in keeps working in demo mode meanwhile. ("
+                   + sent.failure + ")",
                  true };
     }
 
-    const auto reply = stream->readEntireStreamAsString();
-    const auto parsed = juce::JSON::parse (reply);
+    const auto parsed = juce::JSON::parse (sent.body);
 
+    /*  Everything below here reached the server, so none of it is a connection problem.
+        Saying "no connection" to somebody whose connection plainly works sends them to
+        check the one thing that is not broken.                                        */
     if (! parsed.isObject())
-        return { false, "The activation server sent something unreadable. Try again shortly.", true };
+        return { false, "The activation server sent something unreadable. Try again shortly.", false };
 
     if (! (bool) parsed.getProperty ("ok", false))
     {
@@ -223,7 +469,7 @@ Activation::Outcome Activation::activateBlocking (const juce::String& key)
         return { false,
                  message.isNotEmpty() ? message
                                       : juce::String ("That key could not be activated."),
-                 status == 0 };
+                 false };
     }
 
     const auto issuedKey = parsed.getProperty ("key", juce::var()).toString();
@@ -232,7 +478,7 @@ Activation::Outcome Activation::activateBlocking (const juce::String& key)
     const auto expires = (juce::int64) parsed.getProperty ("expires", juce::var (0));
 
     if (issuedKey.isEmpty() || hash.isEmpty() || signature.isEmpty())
-        return { false, "The activation server sent an incomplete reply. Try again shortly.", true };
+        return { false, "The activation server sent an incomplete reply. Try again shortly.", false };
 
     /*  The reply is not trusted on its face. It is written, then verified through exactly
         the same path used at every startup -- so a token that would fail tomorrow fails

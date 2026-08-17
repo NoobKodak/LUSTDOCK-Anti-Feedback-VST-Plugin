@@ -10,7 +10,13 @@
     second instead of a reinstall.
 
     Build:  cmake --build --preset vs --config Release --target LostDuckActivationProbe
-    Usage:  LostDuckActivationProbe <licence-key>
+    Usage:  LostDuckActivationProbe <licence-key> [--async]
+
+    --async routes the request through activateAsync, on a background thread with the
+    result delivered back to the message thread, which is exactly what the plug-in does.
+    Added after an activation failed inside the plug-in while succeeding here: no request
+    reached the server at all, so the background thread was the one structural difference
+    between the two that could still be tested from a console.
 */
 
 #include "../source/Activation.h"
@@ -48,9 +54,45 @@ int main (int argc, char** argv)
 
     const juce::String key { argv[1] };
 
-    std::printf ("\nactivating %s\n", key.toRawUTF8());
+    bool async = false;
 
-    const auto outcome = activation.activateBlocking (key);
+    for (int i = 2; i < argc; ++i)
+        if (juce::String (argv[i]) == "--async")
+            async = true;
+
+    std::printf ("\nactivating %s  (%s)\n", key.toRawUTF8(),
+                 async ? "background thread, as the plug-in does" : "this thread");
+
+    Activation::Outcome outcome;
+
+    if (async)
+    {
+        /*  Pumping the message loop by hand rather than running a JUCEApplication: the
+            result is posted with callAsync, so something has to dispatch it, and this
+            keeps the probe a plain console program.                                  */
+        bool done = false;
+
+        activation.activateAsync (key, [&outcome, &done] (Activation::Outcome result)
+        {
+            outcome = std::move (result);
+            done = true;
+        });
+
+        const auto deadline = juce::Time::getMillisecondCounter() + 60000;
+
+        while (! done && juce::Time::getMillisecondCounter() < deadline)
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+        if (! done)
+        {
+            std::printf ("  timed out waiting for the background request\n");
+            return 1;
+        }
+    }
+    else
+    {
+        outcome = activation.activateBlocking (key);
+    }
 
     line ("ok", outcome.ok ? "yes" : "no");
     line ("offline", outcome.offline ? "yes" : "no");
