@@ -9,9 +9,19 @@ if (!url || !key) {
   );
 }
 
-/** No session handling: nobody logs in. Orders are looked up by number plus email. */
+/*  Sessions are kept, for exactly one person.
+
+    No customer signs in -- orders are looked up by number plus email, which is why there
+    is no account system in the shop at all. The back office is the exception: it moved
+    off a shared token onto a real Supabase Auth login, and that login has to survive a
+    page reload or the admin is signed out every time they navigate.
+
+    It is the same client because it has to be. Every admin RPC goes through
+    supabase.rpc(), and the session that authorises those calls must be attached to the
+    client making them. A second client with its own storage would hold a session the
+    calls could not see.                                                               */
 export const supabase = createClient(url, key, {
-  auth: { persistSession: false, autoRefreshToken: false },
+  auth: { persistSession: true, autoRefreshToken: true },
 });
 
 export function money(cents: number, currency = "USD"): string {

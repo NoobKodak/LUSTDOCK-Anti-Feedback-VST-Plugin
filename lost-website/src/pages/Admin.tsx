@@ -216,8 +216,20 @@ function Pager({
 
 //============================================================================ page
 export function Admin() {
+  /*  A real login, and a shared token that is on its way out.
+
+      `token` stays only so the owner is not locked out between this page shipping and an
+      administrator existing in Supabase Auth. It is retired by emptying admin_tokens in
+      the database -- no deploy -- at which point this falls away to sign-in only.     */
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_KEY) ?? "");
   const [entry, setEntry] = useState("");
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signingIn, setSigningIn] = useState(false);
+  /** null while the session is still being read on first paint. */
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+
   const [tab, setTab] = useState<Tab>("dashboard");
 
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -330,8 +342,42 @@ export function Admin() {
   const [busy, setBusy] = useState(false);
   const [authFailed, setAuthFailed] = useState(false);
 
+  /*  Follows the session rather than reading it once.
+
+      onAuthStateChange fires for the restore-from-storage on first paint as well as for
+      sign-in and sign-out, so one subscription covers all three. Being signed in is not
+      the same as being an administrator -- admin_whoami is what answers that -- and the
+      distinction matters the day a customer account exists.                           */
+  useEffect(() => {
+    let live = true;
+
+    const check = async () => {
+      const { data } = await supabase.auth.getSession();
+
+      if (!data.session) {
+        if (live) setIsAdmin(false);
+        return;
+      }
+
+      const { data: who } = await supabase.rpc("admin_whoami");
+      if (live) setIsAdmin(Boolean((who as { is_admin?: boolean } | null)?.is_admin));
+    };
+
+    void check();
+
+    const { data: sub } = supabase.auth.onAuthStateChange(() => { void check(); });
+
+    return () => { live = false; sub.subscription.unsubscribe(); };
+  }, []);
+
+  /** Either route in. The token half disappears when admin_tokens is emptied. */
+  const authorised = isAdmin === true || (token !== "" && !authFailed);
+
   const call = useCallback(
     async (fn: string, args: Record<string, unknown> = {}) => {
+      /*  p_token is still sent because all 26 admin functions take it. When a session is
+          present the database ignores it entirely -- admin_ok checks auth.uid() first and
+          never reaches the token branch.                                               */
       const { data, error: rpcError } = await supabase.rpc(fn, { p_token: token, ...args });
       if (rpcError) return { ok: false as const, error: rpcError.message };
       return data as { ok: boolean; error?: string; [k: string]: any };
@@ -339,8 +385,29 @@ export function Admin() {
     [token]
   );
 
+  const signIn = useCallback(async () => {
+    setSigningIn(true);
+    setError(null);
+
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+
+    setSigningIn(false);
+    // Not kept in state a moment longer than the request needs it.
+    setPassword("");
+
+    if (authError) {
+      setError(authError.message);
+      return;
+    }
+
+    setAuthFailed(false);
+  }, [email, password]);
+
   const refresh = useCallback(async () => {
-    if (!token) return;
+    if (!authorised) return;
 
     setBusy(true);
     setError(null);
@@ -405,7 +472,7 @@ export function Admin() {
     setBusy(false);
     // `query` rather than `search`: the debounced value, so this runs once a pause
     // rather than once a keypress.
-  }, [call, token, keyFilter, orderFilter, deliveryFilter, query, scope, importSlug,
+  }, [call, authorised, keyFilter, orderFilter, deliveryFilter, query, scope, importSlug,
       orderPage, keyPage]);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -503,7 +570,20 @@ export function Admin() {
     : true);
 
   //=================================================================== sign in
-  if (!token || authFailed) {
+  if (!authorised) {
+    /*  Held back until the session has actually been read. Rendering the sign-in form
+        first and swapping it for the console a moment later flashes a login box at
+        somebody who is already signed in, and looks like being logged out.           */
+    if (isAdmin === null) {
+      return (
+        <section className="admin-shell section">
+          <div className="shell" style={{ maxWidth: 460 }}>
+            <p className="eyebrow">Store admin</p>
+          </div>
+        </section>
+      );
+    }
+
     return (
       <section className="admin-shell section">
         <div className="shell" style={{ maxWidth: 460 }}>
@@ -513,36 +593,70 @@ export function Admin() {
           <div className="panel">
             {error && <div className="notice notice-bad">{error}</div>}
 
-            <div className="field">
-              <label htmlFor="tok">Admin token</label>
-              <input
-                id="tok" className="input" type="password" placeholder="lostduck_..."
-                value={entry}
-                onChange={(e) => setEntry(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
+            <form
+              onSubmit={(e) => { e.preventDefault(); void signIn(); }}
+            >
+              <div className="field">
+                <label htmlFor="adm-email">Email</label>
+                <input
+                  id="adm-email" className="input" type="email" autoComplete="username"
+                  value={email} onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+
+              <div className="field">
+                <label htmlFor="adm-pass">Password</label>
+                <input
+                  id="adm-pass" className="input" type="password"
+                  autoComplete="current-password"
+                  value={password} onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+
+              <button
+                className="btn btn-mint btn-block"
+                disabled={signingIn || !email.trim() || !password}
+              >
+                {signingIn ? "Signing in" : "Sign in"}
+              </button>
+            </form>
+
+            {/*  The old way in, while it still exists.
+
+                Kept behind a disclosure rather than shown as an equal option: it is the
+                thing being retired, and putting it beside the real login invites people
+                to keep using it. It stops working the moment admin_tokens is emptied,
+                which needs no deploy.                                                 */}
+            <details style={{ marginTop: 18 }}>
+              <summary className="small muted" style={{ cursor: "pointer" }}>
+                Use the old shared token
+              </summary>
+
+              <div className="field" style={{ marginTop: 12 }}>
+                <input
+                  id="tok" className="input" type="password" placeholder="lostduck_..."
+                  value={entry}
+                  onChange={(e) => setEntry(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== "Enter") return;
+                    localStorage.setItem(TOKEN_KEY, entry.trim());
+                    setAuthFailed(false);
+                    setToken(entry.trim());
+                  }}
+                />
+              </div>
+
+              <button
+                className="btn btn-block"
+                onClick={() => {
                   localStorage.setItem(TOKEN_KEY, entry.trim());
                   setAuthFailed(false);
                   setToken(entry.trim());
                 }}
-              />
-            </div>
-
-            <button
-              className="btn btn-mint btn-block"
-              onClick={() => {
-                localStorage.setItem(TOKEN_KEY, entry.trim());
-                setAuthFailed(false);
-                setToken(entry.trim());
-              }}
-            >
-              Enter
-            </button>
-
-            <p className="small muted" style={{ marginTop: 16 }}>
-              Demo-grade access control: a shared token, hashed in the database. Replace
-              with Supabase Auth before anyone else can reach this page.
-            </p>
+              >
+                Enter token
+              </button>
+            </details>
           </div>
         </div>
       </section>
@@ -586,7 +700,16 @@ export function Admin() {
           </button>
           <button
             className="btn btn-ghost"
-            onClick={() => { localStorage.removeItem(TOKEN_KEY); setToken(""); setOverview(null); }}
+            /*  Clears both routes in. Signing out of Supabase but leaving the token in
+                localStorage would drop straight back into the console, which does not
+                look like signing out and is not one.                                  */
+            onClick={() => {
+              localStorage.removeItem(TOKEN_KEY);
+              setToken("");
+              setOverview(null);
+              setIsAdmin(false);
+              void supabase.auth.signOut();
+            }}
           >
             Sign out
           </button>
