@@ -2,7 +2,23 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/brand/icon-lostduck.png" />
+    <!--
+      The running figure, built from public/brand/runlogo.webp by scripts/make-favicons.mjs.
+
+      This replaces a link to /brand/icon-lostduck.png, which had never existed in public/
+      -- so the site has been serving a 404 for its own icon and showing browsers' blank
+      default page glyph.
+
+      Both a PNG and an .ico: browsers take the PNG, while Windows shortcuts, pinned sites
+      and older bookmark managers still look for favicon.ico at the root whatever the page
+      says. The Apple icon is listed separately because it is the one that must not be
+      transparent -- iOS composites it onto black.
+    -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png" />
+    <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <!-- Sampled from the artwork itself, not guessed: the mean of its opaque pixels. -->
+    <meta name="theme-color" content="#be0223" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="LOST DUCK Anti Feedback - a feedback suppressor built for live vocals. VST3 for Windows." />
     <title>LOST DUCK Anti Feedback - LOST</title>
