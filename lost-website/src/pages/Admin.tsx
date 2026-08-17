@@ -1877,9 +1877,24 @@ function PublishRelease({
   const [slug, setSlug] = useState(defaultSlug);
   const [version, setVersion] = useState("");
   const [filename, setFilename] = useState("");
+  /*  Where the file actually lives. Blank keeps the old behaviour -- a path inside the
+      site -- which is what the twelve releases already published use.                */
+  const [downloadUrl, setDownloadUrl] = useState("");
   const [size, setSize] = useState("");
   const [sha, setSha] = useState("");
   const [notes, setNotes] = useState("");
+
+  const trimmedUrl = downloadUrl.trim();
+
+  /*  Checked here as well as in the database, because a rejected publish costs a round
+      trip and this is a form somebody fills in with a 36 MB upload already behind them. */
+  const urlProblem =
+    trimmedUrl === "" ? null
+      : /^http:\/\//i.test(trimmedUrl)
+        ? "Use https. A plain http link to an installer can be tampered with in transit."
+        : /^https:\/\//i.test(trimmedUrl) || trimmedUrl.startsWith("/")
+          ? null
+          : "Must be a full https:// URL, or a path starting with /.";
 
   useEffect(() => { setSlug((s) => s || defaultSlug); }, [defaultSlug]);
 
@@ -1906,9 +1921,28 @@ function PublishRelease({
       </div>
 
       <div className="field">
-        <label>Filename in public/downloads/</label>
+        <label>Filename</label>
         <input className="input" placeholder="LOST-DUCK-Anti-Feedback-1.0.1-Setup.exe"
                value={filename} onChange={(e) => setFilename(e.target.value)} />
+        <p className="hint">Shown to the customer on the download panel.</p>
+      </div>
+
+      <div className="field">
+        <label>Download URL</label>
+        <input className="input" placeholder="https://…/storage/v1/object/public/downloads/file.exe?download="
+               value={downloadUrl} onChange={(e) => setDownloadUrl(e.target.value)} />
+        {urlProblem
+          ? <p className="hint hint-bad">{urlProblem}</p>
+          : (
+            <p className="hint">
+              Where the installer is hosted. Leave blank to serve it from the site itself
+              at <span className="mono">/downloads/{filename.trim() || "filename.exe"}</span>,
+              which only works if the file is committed to the website repository.
+              {" "}For a file in Supabase Storage, end the URL with{" "}
+              <span className="mono">?download=</span> so the browser saves it instead of
+              trying to display it.
+            </p>
+          )}
       </div>
 
       <div className="field">
@@ -1924,12 +1958,12 @@ function PublishRelease({
 
       <button
         className="btn btn-mint btn-block"
-        disabled={!version.trim() || !filename.trim() || !slug}
+        disabled={!version.trim() || !filename.trim() || !slug || urlProblem !== null}
         onClick={() => onPublish({
           p_slug: slug,
           p_version: version.trim(),
           p_filename: filename.trim(),
-          p_url_path: `/downloads/${filename.trim()}`,
+          p_url_path: trimmedUrl || `/downloads/${filename.trim()}`,
           p_size: Number(size) || 0,
           p_sha256: sha.trim(),
           p_notes: notes.trim(),

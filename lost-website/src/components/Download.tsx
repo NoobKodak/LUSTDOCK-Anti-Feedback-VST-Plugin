@@ -50,10 +50,27 @@ export function DownloadPanel({ slug, orderNumber, email, compact }: Props) {
     void recordDownload(release.version, orderNumber, email);
   };
 
+  /*  Whether the file is ours to command.
+
+      The `download` attribute is obeyed only for same-origin links. Point it at another
+      host and every browser silently ignores it and navigates instead -- which for an
+      .exe usually still downloads, but by way of a blank tab, and for anything the
+      browser can render would display the file rather than save it.
+
+      So a hosted build has to carry the instruction in its own response headers instead.
+      Supabase Storage does that when the URL ends in `?download=`; the admin form says so
+      where the URL is entered. All this flag does is stop us claiming an attribute that
+      would not be honoured, and open the link cleanly when it is not.                  */
+  const sameOrigin = release.url_path.startsWith("/");
+
+  const linkProps = sameOrigin
+    ? { href: release.url_path, download: true, onClick: start }
+    : { href: release.url_path, rel: "noopener noreferrer", onClick: start };
+
   if (compact) {
     return (
       <Button asChild className="w-full">
-        <a href={release.url_path} download onClick={start}>
+        <a {...linkProps}>
           <DownloadIcon /> Download — {megabytes(release.size_bytes)}
         </a>
       </Button>
@@ -72,7 +89,7 @@ export function DownloadPanel({ slug, orderNumber, email, compact }: Props) {
           </div>
 
           <Button asChild>
-            <a href={release.url_path} download onClick={start}>
+            <a {...linkProps}>
               <DownloadIcon /> Download installer
             </a>
           </Button>

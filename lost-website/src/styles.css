@@ -744,6 +744,18 @@
 textarea.input { min-height: 11rem; resize: vertical; line-height: 1.55; }
 
 .field { margin-bottom: 0.9rem; }
+
+/* Explanation under an input, for the fields where getting it wrong is expensive --
+   a publish rejected after a 36 MB upload, or a download URL that quietly 404s. */
+.hint {
+  margin: 0.4rem 0 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--muted-foreground);
+}
+
+.hint-bad { color: var(--destructive); }
+
 .field label {
   display: block;
   font-size: 0.68rem;
