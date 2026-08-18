@@ -140,7 +140,14 @@ void LostDuckAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlo
     engine.prepare (sampleRate, samplesPerBlock);
     denoiser.prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
     demo.prepare (sampleRate);
-    activated.store (licence.isActivated());
+    /*  Both schemes, not just the old one.
+
+        This read licence.isActivated() alone -- the offline scheme that predates online
+        activation. A customer who activates today satisfies `activation`, not `licence`,
+        so this stored false and the audio thread kept silencing the output while the
+        screen showed them as licensed. The label and the muting were consulting
+        different things, which is the worst version of this bug: it looks fixed.     */
+    activated.store (isActivated());
 
     // The feedback engine is zero-latency by construction. The denoiser is not, so the
     // host is told what to compensate for -- and only while it is switched on.
